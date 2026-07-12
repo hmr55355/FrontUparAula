@@ -27,6 +27,19 @@ const COLUMN_TYPE_LABELS: Record<GradeColumnDraft['column_type'], string> = {
   custom_formula: 'Fórmula personalizada',
 }
 
+type WeightMode = 'manual' | 'automatic'
+
+// Reparte 100 entre n valores a 1 decimal; el último absorbe el residuo del
+// redondeo para que la suma dé exactamente 100.0 en vez de confiar en que
+// Math.round(suma) sea indulgente.
+function distributeEqually(n: number): number[] {
+  if (n <= 0) return []
+  const base = Math.floor((100 / n) * 10) / 10
+  const weights = Array(n).fill(base)
+  weights[n - 1] = Math.round((100 - base * (n - 1)) * 10) / 10
+  return weights
+}
+
 export function ConfigureSheetDialog({
   open,
   onOpenChange,
@@ -46,6 +59,8 @@ export function ConfigureSheetDialog({
   const [sections, setSections] = useState<GradeSectionDraft[]>(() => toDraft(sheet))
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [saving, setSaving] = useState(false)
+  const [weightModes, setWeightModes] = useState<Record<number, WeightMode>>({})
+  const weightMode: WeightMode = weightModes[selectedIndex] ?? 'manual'
 
   const { data: templates } = useQuery({
     queryKey: ['grade-templates', institutionId],
@@ -77,9 +92,25 @@ export function ConfigureSheetDialog({
     setSelectedIndex(0)
   }
 
+  const setWeightMode = (mode: WeightMode) => {
+    setWeightModes((prev) => ({ ...prev, [selectedIndex]: mode }))
+    if (mode === 'automatic' && selected && selected.columns.length > 0) {
+      const weights = distributeEqually(selected.columns.length)
+      updateSection(selectedIndex, { columns: selected.columns.map((c, i) => ({ ...c, weight: weights[i] })) })
+    }
+  }
+
   const addColumn = () => {
     if (!selected) return
     const newColumn: GradeColumnDraft = { name: 'Nueva columna', short_name: '', column_type: 'manual', weight: 0 }
+
+    if (weightMode === 'automatic') {
+      const weights = distributeEqually(selected.columns.length + 1)
+      const columns = [...selected.columns, newColumn].map((c, i) => ({ ...c, weight: weights[i] }))
+      updateSection(selectedIndex, { columns })
+      return
+    }
+
     updateSection(selectedIndex, { columns: [...selected.columns, newColumn] })
   }
 
@@ -91,7 +122,15 @@ export function ConfigureSheetDialog({
 
   const removeColumn = (columnIndex: number) => {
     if (!selected) return
-    updateSection(selectedIndex, { columns: selected.columns.filter((_, i) => i !== columnIndex) })
+    const remaining = selected.columns.filter((_, i) => i !== columnIndex)
+
+    if (weightMode === 'automatic') {
+      const weights = distributeEqually(remaining.length)
+      updateSection(selectedIndex, { columns: remaining.map((c, i) => ({ ...c, weight: weights[i] })) })
+      return
+    }
+
+    updateSection(selectedIndex, { columns: remaining })
   }
 
   const save = async (confirmDelete = false) => {
@@ -229,6 +268,30 @@ export function ConfigureSheetDialog({
                   </Button>
                 </div>
 
+                {selected.final_calculation === 'weighted_avg' && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Label className="text-xs text-muted-foreground">Asignación de pesos:</Label>
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={weightMode === 'automatic' ? 'default' : 'outline'}
+                        onClick={() => setWeightMode('automatic')}
+                      >
+                        Automático
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={weightMode === 'manual' ? 'default' : 'outline'}
+                        onClick={() => setWeightMode('manual')}
+                      >
+                        Manual
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
                 {selected.final_calculation === 'weighted_avg' && Math.round(columnsWeight) !== 100 && (
                   <p className="rounded-md bg-danger/10 px-3 py-2 text-sm text-danger">
                     Los pesos de las columnas suman {columnsWeight}% — deben sumar 100%.
@@ -269,6 +332,7 @@ export function ConfigureSheetDialog({
                         <Input
                           type="number"
                           value={column.weight}
+                          disabled={weightMode === 'automatic'}
                           onChange={(e) => updateColumn(columnIndex, { weight: Number(e.target.value) })}
                         />
                       </div>

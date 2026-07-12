@@ -19,7 +19,7 @@ import type { CitationStatus, ParentCitation } from '@/types/citations'
 import { NewCitationDialog } from '@/pages/citations/NewCitationDialog'
 
 export function Citations() {
-  const { course } = useActiveCourseGroup()
+  const { course, activeCourse } = useActiveCourseGroup()
   const groupId = course?.group_id
   const queryClient = useQueryClient()
 
@@ -56,7 +56,12 @@ export function Citations() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Citaciones a padres</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Citaciones a padres</h1>
+          <p className="text-sm text-muted-foreground">
+            {activeCourse?.groupName} — {activeCourse?.subjectName}
+          </p>
+        </div>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" /> Nueva citación
         </Button>

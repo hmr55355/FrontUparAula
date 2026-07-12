@@ -18,7 +18,7 @@ import { NewAnnotationDialog } from '@/pages/behavior/NewAnnotationDialog'
 import { NewCitationDialog } from '@/pages/citations/NewCitationDialog'
 
 export function Behavior() {
-  const { course } = useActiveCourseGroup()
+  const { course, activeCourse } = useActiveCourseGroup()
   const groupId = course?.group_id
 
   const [typeFilter, setTypeFilter] = useState<BehaviorType | ''>('')
@@ -50,7 +50,12 @@ export function Behavior() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Comportamiento</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Comportamiento</h1>
+          <p className="text-sm text-muted-foreground">
+            {activeCourse?.groupName} — {activeCourse?.subjectName}
+          </p>
+        </div>
         <Button size="sm" onClick={() => setDialogOpen(true)}>
           <Plus className="h-4 w-4" /> Nueva anotación
         </Button>

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CalendarClock, Users, MapPin, Clock, ClipboardCheck, NotebookText } from 'lucide-react'
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +12,8 @@ import { classPlansApi } from '@/services/api/classPlans'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
 import { useActivePeriod } from '@/hooks/useActivePeriod'
 import { PreviousClassPlanDialog } from '@/pages/plans/PreviousClassPlanDialog'
+import { NAV_ITEMS } from '@/config/navItems'
+import type { GroupSubject } from '@/types'
 
 function today() {
   return new Date().toISOString().slice(0, 10)
@@ -28,6 +30,22 @@ export function Dashboard() {
       <CurrentClassCard />
 
       <div>
+        <h2 className="mb-3 text-lg font-semibold">Accesos rápidos</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {NAV_ITEMS.filter((item) => item.to !== '/dashboard').map(({ to, label, icon: Icon }) => (
+            <Link
+              key={to}
+              to={to}
+              className="flex flex-col items-center gap-2 rounded-lg border p-4 text-center transition-colors hover:border-primary hover:bg-primary/5"
+            >
+              <Icon className="h-6 w-6 text-primary" />
+              <span className="text-sm font-medium">{label}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div>
         <h2 className="mb-3 text-lg font-semibold">Mis cursos</h2>
         {isLoading && <p className="text-sm text-muted-foreground">Cargando cursos...</p>}
         {!isLoading && (!courses || courses.length === 0) && (
@@ -39,24 +57,49 @@ export function Dashboard() {
         )}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {courses?.map((course) => (
-            <Card key={course.id}>
-              <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between text-base">
-                  {course.group?.name}
-                  <Badge style={{ backgroundColor: course.subject?.color, color: '#fff', borderColor: 'transparent' }}>
-                    {course.subject?.name}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Users className="h-4 w-4" />
-                {course.group?.student_count ?? 0} estudiantes
-              </CardContent>
-            </Card>
+            <DashboardCourseCard key={course.id} course={course} />
           ))}
         </div>
       </div>
     </div>
+  )
+}
+
+function DashboardCourseCard({ course }: { course: GroupSubject }) {
+  const navigate = useNavigate()
+  const setActiveCourse = useActiveCourseStore((s) => s.setActiveCourse)
+  const { activePeriod, isLoading } = useActivePeriod(course.academic_year_id)
+
+  const goToGrades = () => {
+    if (!activePeriod) return
+    setActiveCourse({
+      groupSubjectId: course.id,
+      groupName: course.group?.name ?? '',
+      subjectName: course.subject?.name ?? '',
+      subjectColor: course.subject?.color ?? '#1565C0',
+    })
+    navigate(`/grades/${course.id}/${activePeriod.id}`)
+  }
+
+  return (
+    <Card
+      className={!isLoading && activePeriod ? 'cursor-pointer transition-shadow hover:shadow-md' : ''}
+      onClick={!isLoading && activePeriod ? goToGrades : undefined}
+    >
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between text-base">
+          {course.group?.name}
+          <Badge style={{ backgroundColor: course.subject?.color, color: '#fff', borderColor: 'transparent' }}>
+            {course.subject?.name}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Users className="h-4 w-4" />
+        {course.group?.student_count ?? 0} estudiantes
+        {!isLoading && !activePeriod && <span className="ml-auto text-xs">Sin período activo</span>}
+      </CardContent>
+    </Card>
   )
 }
 

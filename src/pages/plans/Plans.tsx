@@ -27,7 +27,7 @@ function monthRange(monthDate: Date) {
 }
 
 export function Plans() {
-  const { course } = useActiveCourseGroup()
+  const { course, activeCourse } = useActiveCourseGroup()
   const groupSubjectId = course?.id
   const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -110,7 +110,12 @@ export function Plans() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Planeación y bitácora</h1>
+        <div>
+          <h1 className="text-xl font-semibold">Planeación y bitácora</h1>
+          <p className="text-sm text-muted-foreground">
+            {activeCourse?.groupName} — {activeCourse?.subjectName}
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button variant={view === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setView('list')}>
             Lista

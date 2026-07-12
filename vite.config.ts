@@ -9,6 +9,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        // El SW propio no usa el bloque `workbox: {...}` de abajo (ese solo
+        // aplica a la estrategia generateSW) — el runtime caching se registra
+        // a mano en src/sw.ts con las mismas rutas.
+        globPatterns: ['**/*.{js,css,html,png,svg,ico,webmanifest}'],
+      },
       manifest: {
         name: 'UparAula',
         short_name: 'UparAula',
@@ -22,25 +31,6 @@ export default defineConfig({
           { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
           { src: '/icons/icon-512-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
-      workbox: {
-        runtimeCaching: [
-          {
-            urlPattern: /\/api\/dashboard/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'api-dashboard', expiration: { maxAgeSeconds: 300 } },
-          },
-          {
-            urlPattern: /\/api\/grades/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'api-grades', expiration: { maxAgeSeconds: 60 } },
-          },
-          {
-            urlPattern: /\/api\/schedule\/current-class/,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'api-current-class', expiration: { maxAgeSeconds: 60 } },
-          },
         ],
       },
     }),

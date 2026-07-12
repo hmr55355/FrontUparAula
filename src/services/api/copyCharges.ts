@@ -39,4 +39,7 @@ export const copyChargesApi = {
 
   updatePayment: (paymentId: number, payload: PaymentPayload) =>
     api.patch(`/copy-charges/payments/${paymentId}`, payload),
+
+  summary: (payload: { group_id: number; period_id?: number }) =>
+    api.post<{ data: { id: number } }>('/copy-charges/summary', payload).then((r) => r.data.data),
 }

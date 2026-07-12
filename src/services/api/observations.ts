@@ -12,11 +12,14 @@ export interface ObservationPayload {
 }
 
 export const observationsApi = {
-  list: (studentId: number, periodId?: number) =>
-    api
-      .get<{ data: StudentObservation[] }>('/observations', { params: { studentId, periodId } })
-      .then((r) => r.data.data),
+  list: (params: { studentId?: number; groupId?: number; periodId?: number }) =>
+    api.get<{ data: StudentObservation[] }>('/observations', { params }).then((r) => r.data.data),
 
   create: (payload: ObservationPayload) =>
     api.post<{ data: StudentObservation }>('/observations', payload).then((r) => r.data.data),
+
+  update: (id: number, payload: Partial<Pick<ObservationPayload, 'type' | 'content' | 'is_private'>>) =>
+    api.put<{ data: StudentObservation }>(`/observations/${id}`, payload).then((r) => r.data.data),
+
+  remove: (id: number) => api.delete(`/observations/${id}`),
 }

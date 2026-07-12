@@ -207,7 +207,7 @@ export function StudentProfile() {
       <NewObservationDialog
         open={observationDialogOpen}
         onOpenChange={setObservationDialogOpen}
-        studentId={studentId}
+        presetStudentId={studentId}
         groupId={course?.group_id ?? 0}
         periodId={profile.active_period?.id}
       />

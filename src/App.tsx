@@ -17,14 +17,16 @@ import { Attendance } from '@/pages/attendance/Attendance'
 import { AttendanceHistory } from '@/pages/attendance/AttendanceHistory'
 import { Behavior } from '@/pages/behavior/Behavior'
 import { Citations } from '@/pages/citations/Citations'
+import { Observations } from '@/pages/observations/Observations'
 import { StudentProfile } from '@/pages/student/StudentProfile'
 import { Homeworks } from '@/pages/homeworks/Homeworks'
 import { HomeworkDeliveries } from '@/pages/homeworks/HomeworkDeliveries'
 import { Plans } from '@/pages/plans/Plans'
 import { Copies } from '@/pages/copies/Copies'
 import { CopyChargeDetail } from '@/pages/copies/CopyChargeDetail'
+import { Reports } from '@/pages/reports/Reports'
+import { Configuracion } from '@/pages/settings/Configuracion'
 import { InstitutionSettings } from '@/pages/institution/InstitutionSettings'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { PrivateRoute } from '@/components/layout/PrivateRoute'
 import { RoleGuard } from '@/components/layout/RoleGuard'
 
@@ -36,12 +38,6 @@ const queryClient = new QueryClient({
     },
   },
 })
-
-const FUTURE_MODULES: Array<{ path: string; title: string }> = [
-  { path: '/reports', title: 'Reportes' },
-  { path: '/notifications', title: 'Notificaciones' },
-  { path: '/settings', title: 'Configuración' },
-]
 
 function App() {
   return (
@@ -64,12 +60,15 @@ function App() {
             <Route path="/attendance/history" element={<AttendanceHistory />} />
             <Route path="/behavior" element={<Behavior />} />
             <Route path="/citations" element={<Citations />} />
+            <Route path="/observations" element={<Observations />} />
             <Route path="/student/:id" element={<StudentProfile />} />
             <Route path="/homeworks" element={<Homeworks />} />
             <Route path="/homeworks/:homeworkId" element={<HomeworkDeliveries />} />
             <Route path="/plans" element={<Plans />} />
             <Route path="/copies" element={<Copies />} />
             <Route path="/copies/:chargeId" element={<CopyChargeDetail />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Configuracion />} />
             <Route path="/grades/:groupSubjectId/:periodId" element={<GradeSheet />} />
             <Route
               path="/institution/settings"
@@ -79,9 +78,6 @@ function App() {
                 </RoleGuard>
               }
             />
-            {FUTURE_MODULES.map(({ path, title }) => (
-              <Route key={path} path={path} element={<PlaceholderPage title={title} />} />
-            ))}
           </Route>
         </Routes>
       </BrowserRouter>

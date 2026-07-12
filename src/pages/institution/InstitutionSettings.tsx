@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { api } from '@/services/api/client'
+import { institutionsApi } from '@/services/api/institutions'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 
 export function InstitutionSettings() {
@@ -28,6 +29,8 @@ export function InstitutionSettings() {
         </p>
       </div>
 
+      <LogoCard institutionId={institution.id} hasLogo={!!institution.logo} />
+
       <Tabs defaultValue="teachers">
         <TabsList>
           <TabsTrigger value="teachers">Docentes</TabsTrigger>
@@ -45,6 +48,45 @@ export function InstitutionSettings() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+function LogoCard({ institutionId, hasLogo }: { institutionId: number; hasLogo: boolean }) {
+  const queryClient = useQueryClient()
+  const [file, setFile] = useState<File | null>(null)
+
+  const { data: logoUrl } = useQuery({
+    queryKey: ['institutions', institutionId, 'logo'],
+    queryFn: () => institutionsApi.logoBlobUrl(institutionId),
+    enabled: hasLogo,
+  })
+
+  const upload = useMutation({
+    mutationFn: () => institutionsApi.updateLogo(institutionId, file as File),
+    onSuccess: () => {
+      toast.success('Logo actualizado.')
+      setFile(null)
+      queryClient.invalidateQueries({ queryKey: ['institutions', 'current'] })
+      queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'logo'] })
+    },
+    onError: () => toast.error('No pudimos actualizar el logo.'),
+  })
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Logo de la institución</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        {logoUrl && <img src={logoUrl} alt="Logo actual" className="h-16 w-auto rounded border object-contain" />}
+        <div className="flex flex-wrap items-center gap-2">
+          <input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+          <Button size="sm" variant="outline" disabled={!file || upload.isPending} onClick={() => upload.mutate()}>
+            {upload.isPending ? 'Guardando...' : 'Guardar logo'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 

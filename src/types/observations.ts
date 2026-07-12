@@ -11,6 +11,7 @@ export interface StudentObservation {
   is_private: boolean
   registered_by: number
   teacher_name?: string
+  student?: { id: number; first_name: string; last_name: string }
 }
 
 export const OBSERVATION_TYPE_LABELS: Record<ObservationType, string> = {

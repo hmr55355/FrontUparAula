@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { groupsApi } from '@/services/api/groups'
 import { behaviorApi } from '@/services/api/behavior'
 import { BEHAVIOR_CATEGORY_LABELS, BEHAVIOR_TYPE_LABELS } from '@/types/behavior'
@@ -88,20 +89,12 @@ export function NewAnnotationDialog({
         <div className="flex flex-col gap-3">
           <div className="space-y-1">
             <Label>Estudiante</Label>
-            <select
-              className="h-12 w-full rounded-md border border-input bg-transparent px-3"
+            <SearchableSelect
               value={studentId}
-              onChange={(e) => setStudentId(Number(e.target.value))}
-            >
-              <option value="" disabled>
-                Selecciona un estudiante
-              </option>
-              {students?.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.last_name} {s.first_name}
-                </option>
-              ))}
-            </select>
+              onChange={setStudentId}
+              placeholder="Selecciona un estudiante"
+              options={(students ?? []).map((s) => ({ id: s.id, label: `${s.last_name} ${s.first_name}` }))}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

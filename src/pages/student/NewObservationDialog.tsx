@@ -1,10 +1,12 @@
-import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SearchableSelect } from '@/components/ui/searchable-select'
+import { groupsApi } from '@/services/api/groups'
 import { observationsApi } from '@/services/api/observations'
 import { OBSERVATION_TYPE_LABELS } from '@/types/observations'
 import type { ObservationType } from '@/types/observations'
@@ -12,25 +14,40 @@ import type { ObservationType } from '@/types/observations'
 export function NewObservationDialog({
   open,
   onOpenChange,
-  studentId,
+  presetStudentId,
   groupId,
   periodId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  studentId: number
+  presetStudentId?: number
   groupId: number
   periodId?: number
 }) {
   const queryClient = useQueryClient()
+  const { data: students } = useQuery({
+    queryKey: ['group-students', groupId],
+    queryFn: () => groupsApi.students(groupId),
+  })
+
+  const [studentId, setStudentId] = useState<number | ''>(presetStudentId ?? '')
   const [type, setType] = useState<ObservationType>('seguimiento')
   const [content, setContent] = useState('')
   const [isPrivate, setIsPrivate] = useState(false)
   const [saving, setSaving] = useState(false)
 
+  useEffect(() => {
+    if (open) {
+      setStudentId(presetStudentId ?? '')
+      setType('seguimiento')
+      setContent('')
+      setIsPrivate(false)
+    }
+  }, [open, presetStudentId])
+
   const save = async () => {
-    if (!content) {
-      toast.error('Escribe el contenido de la observación.')
+    if (!studentId || !content) {
+      toast.error('Selecciona el estudiante y escribe el contenido de la observación.')
       return
     }
     setSaving(true)
@@ -46,9 +63,8 @@ export function NewObservationDialog({
       })
       toast.success('Observación guardada.')
       queryClient.invalidateQueries({ queryKey: ['student-profile', studentId] })
+      queryClient.invalidateQueries({ queryKey: ['observations', groupId] })
       onOpenChange(false)
-      setContent('')
-      setIsPrivate(false)
     } catch {
       toast.error('No pudimos guardar la observación.')
     } finally {
@@ -64,6 +80,17 @@ export function NewObservationDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
+          <div className="space-y-1">
+            <Label>Estudiante</Label>
+            <SearchableSelect
+              value={studentId}
+              onChange={setStudentId}
+              disabled={!!presetStudentId}
+              placeholder="Selecciona un estudiante"
+              options={(students ?? []).map((s) => ({ id: s.id, label: `${s.last_name} ${s.first_name}` }))}
+            />
+          </div>
+
           <div className="space-y-1">
             <Label>Tipo</Label>
             <select

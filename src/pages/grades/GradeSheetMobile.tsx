@@ -204,7 +204,7 @@ function MobileGradeRow({
           type="number"
           inputMode="decimal"
           step="0.1"
-          className="w-20 rounded-md border-2 border-primary px-2 py-1 text-center"
+          className="w-20 rounded-md bg-background px-2 py-1 text-center text-foreground ring-2 ring-inset ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => {
@@ -304,7 +304,7 @@ function QuickGradeMode({
             inputMode="decimal"
             step="0.1"
             placeholder="0.0"
-            className="w-32 rounded-md border-2 border-primary px-3 py-3 text-center text-2xl"
+            className="w-32 rounded-md border-2 border-primary px-3 py-3 text-center text-2xl [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && commitAndAdvance()}

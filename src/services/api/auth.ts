@@ -21,4 +21,9 @@ export const authApi = {
 
   resetPassword: (data: { token: string; email: string; password: string; password_confirmation: string }) =>
     api.post('/auth/reset-password', data),
+
+  updateNotificationPreferences: (preferences: Record<string, boolean>) =>
+    api.patch<{ data: User }>('/auth/notification-preferences', { preferences }).then((r) => r.data.data),
+
+  deleteAccount: () => api.delete('/auth/me'),
 }

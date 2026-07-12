@@ -1,4 +1,4 @@
-import { Fragment, useState, type KeyboardEvent } from 'react'
+import { Fragment, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
@@ -138,9 +138,25 @@ function EditableGradeCell({
   onSave: (value: number | null) => void
 }) {
   const [editing, setEditing] = useState(false);
+  const lockedWidthRef = useRef<number | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const numeric = score === null ? null : Number(score)
   const [draft, setDraft] = useState(numeric === null ? '' : String(numeric))
   const { background, text } = getGradeColor(numeric, minPassing)
+
+  // El <input> nativo aporta un ancho "preferido" intrínseco al algoritmo de layout "auto"
+  // de la tabla que ninguna combinación de width/max-width/contain en el propio input (ni
+  // en un <div> envolvente) logra suprimir — el navegador igual ensancha la columna. La
+  // única forma confiable de evitarlo es fijar el width directamente en el <td>, ya que el
+  // ancho especificado de una celda sí es una entrada de primera clase para ese algoritmo.
+  useLayoutEffect(() => {
+    const td = inputRef.current?.closest('td')
+    if (!editing || !td || lockedWidthRef.current === null) return
+    td.style.width = `${lockedWidthRef.current}px`
+    return () => {
+      td.style.width = ''
+    }
+  }, [editing])
 
   if (readOnly) {
     return (
@@ -156,7 +172,8 @@ function EditableGradeCell({
         type="button"
         className="block w-full px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
         style={{ backgroundColor: background, color: text }}
-        onClick={() => {
+        onClick={(e) => {
+          lockedWidthRef.current = e.currentTarget.offsetWidth
           setDraft(numeric === null ? '' : String(numeric))
           setEditing(true)
         }}
@@ -186,11 +203,12 @@ function EditableGradeCell({
 
   return (
     <input
+      ref={inputRef}
       autoFocus
       type="number"
       inputMode="decimal"
       step="0.1"
-      className="w-full border-2 border-primary px-2 py-2 text-center outline-none"
+      className="block w-full bg-background px-2 py-2 text-center text-foreground outline-none ring-2 ring-inset ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}

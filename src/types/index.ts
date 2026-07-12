@@ -14,6 +14,7 @@ export interface User {
   email: string
   avatar: string | null
   phone: string | null
+  notification_preferences: Record<string, boolean> | null
   institutions?: InstitutionMembership[]
   created_at: string
 }

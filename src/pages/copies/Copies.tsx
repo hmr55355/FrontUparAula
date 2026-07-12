@@ -6,6 +6,7 @@ import { Plus } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import { SearchableSelect } from '@/components/ui/searchable-select'
 import { institutionsApi } from '@/services/api/institutions'
 import { periodsApi } from '@/services/api/periods'
 import { copyChargesApi } from '@/services/api/copyCharges'
@@ -55,17 +56,9 @@ export function Copies() {
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <select
-          className="h-10 rounded-md border border-input bg-transparent px-2 text-sm"
-          value={groupId}
-          onChange={(e) => setGroupId(Number(e.target.value))}
-        >
-          {groups?.map((g) => (
-            <option key={g.id} value={g.id}>
-              {g.name}
-            </option>
-          ))}
-        </select>
+        <div className="w-48">
+          <SearchableSelect value={groupId} onChange={setGroupId} options={(groups ?? []).map((g) => ({ id: g.id, label: g.name }))} />
+        </div>
         <select
           className="h-10 rounded-md border border-input bg-transparent px-2 text-sm"
           value={periodId}
