@@ -70,7 +70,7 @@ export function GradeSheetMobile({
         sheet={sheet}
         columnId={view.columnId}
         onBack={() => setView({ mode: 'list' })}
-        onSave={(studentId, score) => saveGrade.mutate({ studentId, columnId: view.columnId, score })}
+        onSave={(studentId, score) => saveGrade.mutateAsync({ studentId, columnId: view.columnId, score })}
       />
     )
   }
@@ -243,12 +243,13 @@ function QuickGradeMode({
   sheet: GradeSheetResponse
   columnId: number
   onBack: () => void
-  onSave: (studentId: number, score: number | null) => void
+  onSave: (studentId: number, score: number | null) => Promise<unknown>
 }) {
   const [index, setIndex] = useState(0)
   const [draft, setDraft] = useState('')
   const [savedCount, setSavedCount] = useState(0)
   const [finished, setFinished] = useState(false)
+  const [saving, setSaving] = useState(false)
 
   const student = sheet.students[index]
   const column = sheet.sections.flatMap((s) => s.columns).find((c) => c.id === columnId)
@@ -267,11 +268,21 @@ function QuickGradeMode({
 
   if (!student || !column) return null
 
-  const commitAndAdvance = () => {
+  const commitAndAdvance = async () => {
     const trimmed = draft.trim()
     if (trimmed !== '') {
-      onSave(student.id, Number(trimmed))
-      setSavedCount((c) => c + 1)
+      setSaving(true)
+      try {
+        await onSave(student.id, Number(trimmed))
+        setSavedCount((c) => c + 1)
+      } catch {
+        // useSaveGrade ya revierte la caché y muestra un toast de error — nos
+        // quedamos en el mismo estudiante para que el docente pueda reintentar
+        // en vez de avanzar como si se hubiera guardado.
+        setSaving(false)
+        return
+      }
+      setSaving(false)
     }
     setDraft('')
     if (index + 1 >= sheet.students.length) {
@@ -306,11 +317,12 @@ function QuickGradeMode({
             placeholder="0.0"
             className="w-32 rounded-md border-2 border-primary px-3 py-3 text-center text-2xl [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
             value={draft}
+            disabled={saving}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && commitAndAdvance()}
           />
-          <Button size="lg" className="w-full" onClick={commitAndAdvance}>
-            Guardar y siguiente <ChevronRight className="h-4 w-4" />
+          <Button size="lg" className="w-full" onClick={commitAndAdvance} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar y siguiente'} <ChevronRight className="h-4 w-4" />
           </Button>
         </CardContent>
       </Card>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 import { reportsApi } from '@/services/api/reports'
@@ -15,6 +15,14 @@ const MAX_POLLS = 40 // ~60s — after this we assume the queue worker is stuck/
  */
 export function useReportGeneration() {
   const [isGenerating, setIsGenerating] = useState(false)
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const generate = async (create: () => Promise<{ id: number }>, filename: string) => {
     setIsGenerating(true)
@@ -27,11 +35,13 @@ export function useReportGeneration() {
       let polls = 0
 
       while (status === 'pending' || status === 'processing') {
+        if (!mountedRef.current) return
         if (polls >= MAX_POLLS) {
           toast.error('El reporte está tardando más de lo esperado. Intenta de nuevo en unos minutos.')
           return
         }
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        if (!mountedRef.current) return
         const report = await reportsApi.status(id)
         status = report.status
         errorMessage = report.error_message
@@ -39,12 +49,15 @@ export function useReportGeneration() {
         polls += 1
       }
 
+      if (!mountedRef.current) return
+
       if (status === 'failed') {
         toast.error(errorMessage ?? 'No pudimos generar el reporte.')
         return
       }
 
       const blob = await reportsApi.downloadBlob(id)
+      if (!mountedRef.current) return
       const url = URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -53,9 +66,13 @@ export function useReportGeneration() {
       URL.revokeObjectURL(url)
       toast.success('Reporte generado.')
     } catch {
-      toast.error('No pudimos generar el reporte.')
+      if (mountedRef.current) {
+        toast.error('No pudimos generar el reporte.')
+      }
     } finally {
-      setIsGenerating(false)
+      if (mountedRef.current) {
+        setIsGenerating(false)
+      }
     }
   }
 

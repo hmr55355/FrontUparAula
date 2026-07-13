@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import type { InstitutionRole } from '@/types'
 
 interface RoleGuardProps {
@@ -9,17 +10,20 @@ interface RoleGuardProps {
 }
 
 /**
- * Gates a route by the teacher's role within their active institution
- * (admin vs teacher, resolved via institution_teachers server-side).
+ * Gates a route by the teacher's *effective* role within their active
+ * institution: el rol real resuelto server-side, salvo que un admin haya
+ * cambiado su vista a "Docente" (viewModeStore), en cuyo caso se trata como
+ * docente también para efectos de esta ruta.
  */
 export function RoleGuard({ allow, children }: RoleGuardProps) {
-  const { data: institution, isLoading } = useCurrentInstitution()
+  const { isLoading } = useCurrentInstitution()
+  const effectiveRole = useEffectiveRole()
 
   if (isLoading) {
     return null
   }
 
-  if (!institution || !institution.my_role || !allow.includes(institution.my_role)) {
+  if (!effectiveRole || !allow.includes(effectiveRole)) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-24 text-center">
         <h2 className="text-xl font-semibold">No tienes acceso a esta sección</h2>

@@ -7,11 +7,14 @@ import { NotificationBell } from '@/components/layout/NotificationBell'
 import { useAuthStore } from '@/store/authStore'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
 import { useThemeStore } from '@/store/themeStore'
+import { useViewModeStore } from '@/store/viewModeStore'
 import { useEnsureActiveCourse } from '@/hooks/useEnsureActiveCourse'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import { groupSubjectsApi } from '@/services/api/groupSubjects'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { NAV_ITEMS } from '@/config/navItems'
+import { NAV_ITEMS, type NavItem } from '@/config/navItems'
 import type { GroupSubject } from '@/types'
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -20,6 +23,10 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const logout = useAuthStore((s) => s.logout)
   const { isDark, toggle } = useThemeStore()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const { data: institution } = useCurrentInstitution()
+  const effectiveRole = useEffectiveRole()
+  const isRealAdmin = institution?.my_role === 'admin'
+  const visibleNavItems = NAV_ITEMS.filter((item) => item.to !== '/institution/settings' || effectiveRole === 'admin')
 
   const { data: courses } = useQuery({
     queryKey: ['group-subjects', 'mine'],
@@ -72,7 +79,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
 
       <div className="flex">
         <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-60 shrink-0 overflow-y-auto border-r bg-card p-3 lg:block">
-          <Nav onNavigate={() => {}} />
+          {isRealAdmin && <ViewModeToggle />}
+          <Nav items={visibleNavItems} onNavigate={() => {}} />
           <Button variant="outline" className="mt-4 w-full" onClick={handleLogout}>
             Cerrar sesión
           </Button>
@@ -94,7 +102,8 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 <CourseSwitcher courses={courses} fullWidth />
               </div>
 
-              <Nav onNavigate={() => setDrawerOpen(false)} />
+              {isRealAdmin && <ViewModeToggle />}
+              <Nav items={visibleNavItems} onNavigate={() => setDrawerOpen(false)} />
               <Button variant="outline" className="mt-4 w-full" onClick={handleLogout}>
                 Cerrar sesión
               </Button>
@@ -164,10 +173,41 @@ function CourseSwitcher({ courses, fullWidth = false }: { courses?: GroupSubject
   )
 }
 
-function Nav({ onNavigate }: { onNavigate: () => void }) {
+function ViewModeToggle() {
+  const viewMode = useViewModeStore((s) => s.viewMode)
+  const setViewMode = useViewModeStore((s) => s.setViewMode)
+
+  return (
+    <div className="mb-3">
+      <p className="mb-1 px-1 text-xs font-medium uppercase text-muted-foreground">Vista</p>
+      <div className="flex gap-1">
+        <button
+          onClick={() => setViewMode('admin')}
+          className={cn(
+            'flex-1 rounded-md border px-2 py-1.5 text-sm',
+            viewMode === 'admin' ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'
+          )}
+        >
+          Admin
+        </button>
+        <button
+          onClick={() => setViewMode('teacher')}
+          className={cn(
+            'flex-1 rounded-md border px-2 py-1.5 text-sm',
+            viewMode === 'teacher' ? 'border-primary bg-primary/10 text-primary' : 'hover:bg-muted'
+          )}
+        >
+          Docente
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Nav({ items, onNavigate }: { items: NavItem[]; onNavigate: () => void }) {
   return (
     <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+      {items.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}

@@ -11,6 +11,7 @@ import { attendanceApi } from '@/services/api/attendance'
 import { classPlansApi } from '@/services/api/classPlans'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
 import { useActivePeriod } from '@/hooks/useActivePeriod'
+import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import { PreviousClassPlanDialog } from '@/pages/plans/PreviousClassPlanDialog'
 import { NAV_ITEMS } from '@/config/navItems'
 import type { GroupSubject } from '@/types'
@@ -24,6 +25,7 @@ export function Dashboard() {
     queryKey: ['group-subjects', 'mine'],
     queryFn: groupSubjectsApi.myCourses,
   })
+  const effectiveRole = useEffectiveRole()
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -32,7 +34,9 @@ export function Dashboard() {
       <div>
         <h2 className="mb-3 text-lg font-semibold">Accesos rápidos</h2>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {NAV_ITEMS.filter((item) => item.to !== '/dashboard').map(({ to, label, icon: Icon }) => (
+          {NAV_ITEMS.filter(
+            (item) => item.to !== '/dashboard' && (item.to !== '/institution/settings' || effectiveRole === 'admin')
+          ).map(({ to, label, icon: Icon }) => (
             <Link
               key={to}
               to={to}

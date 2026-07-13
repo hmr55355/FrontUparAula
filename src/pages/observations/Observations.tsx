@@ -24,7 +24,7 @@ export function Observations() {
   const [selected, setSelected] = useState<StudentObservation | null>(null)
 
   const { data: observations, isLoading } = useQuery({
-    queryKey: ['observations', groupId, typeFilter],
+    queryKey: ['observations', groupId],
     queryFn: () => observationsApi.list({ groupId: groupId as number }),
     enabled: !!groupId,
   })

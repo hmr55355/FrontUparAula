@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import axios from 'axios'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { api } from '@/services/api/client'
 import { institutionsApi } from '@/services/api/institutions'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
@@ -102,11 +104,23 @@ interface Teacher {
 function TeachersPanel({ institutionId }: { institutionId: number }) {
   const queryClient = useQueryClient()
   const [inviteEmail, setInviteEmail] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
-  const { data: teachers } = useQuery({
-    queryKey: ['institutions', institutionId, 'teachers'],
-    queryFn: () => api.get<{ data: Teacher[] }>(`/institutions/${institutionId}/teachers`).then((r) => r.data.data),
+  const { data } = useQuery({
+    queryKey: ['institutions', institutionId, 'teachers', page],
+    queryFn: () =>
+      api
+        .get<{ data: Teacher[]; meta: { current_page: number; last_page: number } }>(
+          `/institutions/${institutionId}/teachers`,
+          { params: { page } }
+        )
+        .then((r) => r.data),
+    // Docentes/grupos/materias cambian poco — evita re-pedir en cada montaje.
+    staleTime: 3 * 60 * 1000,
   })
+  const teachers = data?.data
+  const meta = data?.meta
 
   const invite = useMutation({
     mutationFn: () => api.post(`/institutions/${institutionId}/teachers/invite`, { email: inviteEmail }),
@@ -129,14 +143,18 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
         <CardTitle>Docentes</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Input
             placeholder="Correo del docente a invitar"
             value={inviteEmail}
             onChange={(e) => setInviteEmail(e.target.value)}
+            className="max-w-xs"
           />
           <Button onClick={() => invite.mutate()} disabled={!inviteEmail || invite.isPending}>
             Invitar docente
+          </Button>
+          <Button variant="outline" onClick={() => setCreateOpen(true)}>
+            Crear docente
           </Button>
         </div>
         <Table>
@@ -167,8 +185,113 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
             ))}
           </TableBody>
         </Table>
+
+        {meta && meta.last_page > 1 && (
+          <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {meta.current_page} de {meta.last_page}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= meta.last_page}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
+        )}
       </CardContent>
+
+      <CreateTeacherDialog open={createOpen} onOpenChange={setCreateOpen} institutionId={institutionId} />
     </Card>
+  )
+}
+
+function CreateTeacherDialog({
+  open,
+  onOpenChange,
+  institutionId,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  institutionId: number
+}) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState<'admin' | 'teacher'>('teacher')
+
+  const reset = () => {
+    setName('')
+    setEmail('')
+    setPassword('')
+    setRole('teacher')
+  }
+
+  const create = useMutation({
+    mutationFn: () => api.post(`/institutions/${institutionId}/teachers`, { name, email, password, role }),
+    onSuccess: () => {
+      toast.success(`Docente creado. Comparte estas credenciales: ${email} / ${password}`)
+      queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'teachers'] })
+      reset()
+      onOpenChange(false)
+    },
+    onError: (error) => {
+      const message =
+        (axios.isAxiosError(error) && (error.response?.data?.errors?.email?.[0] || error.response?.data?.message)) ||
+        'No pudimos crear el docente.'
+      toast.error(message)
+    },
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(next) => { if (!next) reset(); onOpenChange(next) }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Crear docente</DialogTitle>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="space-y-1">
+            <Label>Nombre</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Correo</Label>
+            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Contraseña</Label>
+            <Input
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 8 caracteres"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label>Rol</Label>
+            <select
+              className="h-12 w-full rounded-md border border-input bg-transparent px-3"
+              value={role}
+              onChange={(e) => setRole(e.target.value as 'admin' | 'teacher')}
+            >
+              <option value="teacher">Docente</option>
+              <option value="admin">Administrador</option>
+            </select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => create.mutate()} disabled={!name || !email || password.length < 8 || create.isPending}>
+            {create.isPending ? 'Creando...' : 'Crear docente'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -188,6 +311,7 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
   const { data: groups } = useQuery({
     queryKey: ['groups', institutionId],
     queryFn: () => api.get<{ data: GroupRow[] }>('/groups', { params: { institutionId } }).then((r) => r.data.data),
+    staleTime: 3 * 60 * 1000,
   })
 
   const { data: academicYears } = useQuery({
@@ -196,6 +320,7 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
       api.get<{ data: { id: number; is_active: boolean }[] }>('/academic-years', { params: { institutionId } }).then(
         (r) => r.data.data
       ),
+    staleTime: 3 * 60 * 1000,
   })
   const activeYear = academicYears?.find((y) => y.is_active)
 
@@ -275,6 +400,7 @@ function SubjectsPanel({ institutionId }: { institutionId: number }) {
   const { data: subjects } = useQuery({
     queryKey: ['subjects', institutionId],
     queryFn: () => api.get<{ data: SubjectRow[] }>('/subjects', { params: { institutionId } }).then((r) => r.data.data),
+    staleTime: 3 * 60 * 1000,
   })
 
   const createSubject = useMutation({

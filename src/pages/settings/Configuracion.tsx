@@ -3,15 +3,14 @@ import { Link } from 'react-router-dom'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import { AcademicYearSettings } from '@/pages/settings/AcademicYearSettings'
 import { NotificationPreferences } from '@/pages/settings/NotificationPreferences'
 import { ImportExport } from '@/pages/settings/ImportExport'
 import { DangerZone } from '@/pages/settings/DangerZone'
 
 export function Configuracion() {
-  const { data: institution } = useCurrentInstitution()
-  const isAdmin = institution?.my_role === 'admin'
+  const isAdmin = useEffectiveRole() === 'admin'
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">

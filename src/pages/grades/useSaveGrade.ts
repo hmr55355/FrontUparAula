@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 
 import { gradesApi } from '@/services/api/grades'
 import type { GradeSheetResponse } from '@/types/grades'
@@ -7,14 +9,19 @@ export function gradeSheetQueryKey(groupSubjectId: number, periodId: number) {
   return ['grades-sheet', groupSubjectId, periodId] as const
 }
 
+const INVALIDATE_DEBOUNCE_MS = 600
+
 /**
  * Saves one grade with an optimistic update to the cached sheet, then invalidates
  * so the real section/period finals (recalculated server-side via GradeObserver)
- * come back on the next fetch.
+ * come back on the next fetch. The invalidation is debounced: a burst of saves
+ * (quick-grade mode looping through many students, or fast sequential edits)
+ * collapses into a single full-sheet refetch instead of one per save.
  */
 export function useSaveGrade(groupSubjectId: number, periodId: number) {
   const queryClient = useQueryClient()
   const queryKey = gradeSheetQueryKey(groupSubjectId, periodId)
+  const invalidateTimeout = useRef<ReturnType<typeof setTimeout>>()
 
   return useMutation({
     mutationFn: (vars: { studentId: number; columnId: number; score: number | null }) =>
@@ -52,10 +59,16 @@ export function useSaveGrade(groupSubjectId: number, periodId: number) {
       if (context?.previous) {
         queryClient.setQueryData(queryKey, context.previous)
       }
+      toast.error('No pudimos guardar la nota.')
     },
 
     onSettled: () => {
-      queryClient.invalidateQueries({ queryKey })
+      if (invalidateTimeout.current) {
+        clearTimeout(invalidateTimeout.current)
+      }
+      invalidateTimeout.current = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey })
+      }, INVALIDATE_DEBOUNCE_MS)
     },
   })
 }

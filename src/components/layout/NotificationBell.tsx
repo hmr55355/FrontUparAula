@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Bell } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { notificationsApi } from '@/services/api/notifications'
-import type { NotificationPriority } from '@/types/notifications'
+import type { AppNotification, NotificationPriority } from '@/types/notifications'
 
 const PRIORITY_DOT: Record<NotificationPriority, string> = {
   info: 'bg-blue-500',
@@ -18,12 +18,38 @@ export function NotificationBell() {
 
   const { data } = useQuery({
     queryKey: ['notifications'],
-    queryFn: notificationsApi.list,
+    queryFn: () => notificationsApi.list(1),
     refetchInterval: 60_000,
   })
 
-  const notifications = data?.data ?? []
+  // Página 1 se refresca sola cada 60s (arriba); "Cargar más" solo pide páginas
+  // adicionales bajo demanda y las acumula localmente — evita traer siempre
+  // todo el historial cuando la mayoría de las veces solo importa lo reciente.
+  const [extraPages, setExtraPages] = useState<AppNotification[]>([])
+  const [nextPage, setNextPage] = useState(2)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+
+  useEffect(() => {
+    setExtraPages([])
+    setNextPage(2)
+    setHasMore(data ? data.current_page < data.last_page : false)
+  }, [data])
+
+  const notifications = [...(data?.data ?? []), ...extraPages]
   const unreadCount = notifications.filter((n) => !n.read_at).length
+
+  const loadMore = async () => {
+    setLoadingMore(true)
+    try {
+      const page = await notificationsApi.list(nextPage)
+      setExtraPages((prev) => [...prev, ...page.data])
+      setNextPage((p) => p + 1)
+      setHasMore(page.current_page < page.last_page)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   const markRead = async (id: number) => {
     await notificationsApi.markRead(id)
@@ -60,19 +86,30 @@ export function NotificationBell() {
             {notifications.length === 0 ? (
               <p className="px-3 py-4 text-center text-sm text-muted-foreground">Sin notificaciones.</p>
             ) : (
-              notifications.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => markRead(n.id)}
-                  className={`flex w-full flex-col gap-0.5 rounded px-3 py-2 text-left text-sm hover:bg-muted ${n.read_at ? 'opacity-60' : ''}`}
-                >
-                  <span className="flex items-center gap-2 font-medium">
-                    <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[n.priority]}`} />
-                    {n.title}
-                  </span>
-                  <span className="pl-4 text-xs text-muted-foreground">{n.body}</span>
-                </button>
-              ))
+              <>
+                {notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => markRead(n.id)}
+                    className={`flex w-full flex-col gap-0.5 rounded px-3 py-2 text-left text-sm hover:bg-muted ${n.read_at ? 'opacity-60' : ''}`}
+                  >
+                    <span className="flex items-center gap-2 font-medium">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${PRIORITY_DOT[n.priority]}`} />
+                      {n.title}
+                    </span>
+                    <span className="pl-4 text-xs text-muted-foreground">{n.body}</span>
+                  </button>
+                ))}
+                {hasMore && (
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="w-full rounded px-3 py-2 text-center text-xs text-primary hover:bg-muted hover:underline disabled:opacity-50"
+                  >
+                    {loadingMore ? 'Cargando...' : 'Cargar más'}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </>
