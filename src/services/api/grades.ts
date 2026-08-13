@@ -1,5 +1,5 @@
 import { api } from '@/services/api/client'
-import type { Grade, GradeSheetResponse } from '@/types/grades'
+import type { Grade, GradeSheetResponse, PeriodFinal, SectionFinal } from '@/types/grades'
 
 export const gradesApi = {
   sheet: (groupSubjectId: number, periodId: number) =>
@@ -15,4 +15,10 @@ export const gradesApi = {
 
   recalculate: (groupSubjectId: number, periodId: number) =>
     api.post('/period-finals/calculate', null, { params: { groupSubjectId, periodId } }),
+
+  adjustSectionFinal: (id: number, payload: { section_final: number; adjustment_reason: string }) =>
+    api.put<{ data: SectionFinal }>(`/section-finals/${id}/adjust`, payload).then((r) => r.data.data),
+
+  adjustPeriodFinal: (id: number, payload: { period_final: number; adjustment_reason: string }) =>
+    api.put<{ data: PeriodFinal }>(`/period-finals/${id}/adjust`, payload).then((r) => r.data.data),
 }

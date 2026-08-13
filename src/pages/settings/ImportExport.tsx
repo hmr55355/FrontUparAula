@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import axios from 'axios'
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -52,8 +53,9 @@ export function ImportExport() {
       const response = await studentImportApi.import(groupId, file)
       setResult(response)
       toast.success(`${response.created} estudiantes importados.`)
-    } catch {
-      toast.error('No pudimos importar el archivo.')
+    } catch (error) {
+      const message = (axios.isAxiosError(error) && error.response?.data?.message) || 'No pudimos importar el archivo.'
+      toast.error(message)
     } finally {
       setImporting(false)
     }
@@ -82,7 +84,11 @@ export function ImportExport() {
       <Card>
         <CardHeader>
           <CardTitle>Importar estudiantes</CardTitle>
-          <CardDescription>Sube un .xlsx con columnas: Apellidos, Nombres, Tipo documento, Número documento, Email</CardDescription>
+          <CardDescription>
+            Sube un .xlsx con una fila de encabezados que incluya al menos "Apellidos" y "Nombres" — acepta la
+            plantilla simple (Apellidos, Nombres, Tipo documento, Número documento, Email) o un export de
+            matrícula/SIMAT con columnas de sobra en otro orden.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           <SearchableSelect value={groupId} onChange={setGroupId} options={(groups ?? []).map((g) => ({ id: g.id, label: g.name }))} />

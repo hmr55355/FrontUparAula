@@ -5,7 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
+import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import type { GradeSheetResponse } from '@/types/grades'
+
+type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
 
 type View = { mode: 'list' } | { mode: 'detail'; studentId: number } | { mode: 'pick-column' } | { mode: 'quick'; columnId: number }
 
@@ -29,6 +32,8 @@ export function GradeSheetMobile({
         sheet={sheet}
         studentId={student.id}
         studentName={`${student.first_name} ${student.last_name}`}
+        groupSubjectId={groupSubjectId}
+        periodId={periodId}
         onBack={() => setView({ mode: 'list' })}
         onSave={(columnId, score) => saveGrade.mutate({ studentId: student.id, columnId, score })}
       />
@@ -110,15 +115,22 @@ function StudentDetail({
   sheet,
   studentId,
   studentName,
+  groupSubjectId,
+  periodId,
   onBack,
   onSave,
 }: {
   sheet: GradeSheetResponse
   studentId: number
   studentName: string
+  groupSubjectId: number
+  periodId: number
   onBack: () => void
   onSave: (columnId: number, score: number | null) => void
 }) {
+  const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
+  const periodFinalRow = sheet.period_finals[studentId]
+
   return (
     <div className="flex flex-col gap-3 lg:hidden">
       <Button variant="ghost" className="w-fit" onClick={onBack}>
@@ -127,7 +139,7 @@ function StudentDetail({
       <h2 className="text-base font-semibold">{studentName}</h2>
 
       {sheet.sections.map((section) => {
-        const sectionFinal = sheet.section_finals[studentId]?.[section.id]?.section_final
+        const sectionFinalRow = sheet.section_finals[studentId]?.[section.id]
         return (
           <Card key={section.id}>
             <CardContent className="flex flex-col gap-2 py-4">
@@ -151,10 +163,23 @@ function StudentDetail({
               {section.has_section_final && (
                 <MobileGradeRow
                   label={section.section_final_label}
-                  score={sectionFinal ? Number(sectionFinal) : null}
+                  score={sectionFinalRow?.section_final ? Number(sectionFinalRow.section_final) : null}
                   minPassing={sheet.min_passing_grade}
                   readOnly
                   bold
+                  adjusted={sectionFinalRow?.manually_adjusted}
+                  onAdjust={
+                    sectionFinalRow
+                      ? () =>
+                          setAdjustTarget({
+                            type: 'section',
+                            id: sectionFinalRow.id,
+                            label: `${studentName} — ${section.section_final_label}`,
+                            currentValue:
+                              sectionFinalRow.section_final === null ? null : Number(sectionFinalRow.section_final),
+                          })
+                      : undefined
+                  }
                 />
               )}
             </CardContent>
@@ -164,14 +189,40 @@ function StudentDetail({
 
       <Card className="border-primary/30 bg-primary/5">
         <CardContent className="flex items-center justify-between py-4">
-          <span className="font-semibold">Def Total</span>
-          <span className="text-lg font-bold">
-            {sheet.period_finals[studentId]?.period_final
-              ? Number(sheet.period_finals[studentId].period_final).toFixed(1)
-              : '—'}
+          <span className="font-semibold">
+            Def Total{periodFinalRow?.manually_adjusted && <span className="ml-1 text-xs">✎</span>}
           </span>
+          <button
+            type="button"
+            className="text-lg font-bold disabled:opacity-70"
+            disabled={!periodFinalRow}
+            onClick={() =>
+              periodFinalRow &&
+              setAdjustTarget({
+                type: 'period',
+                id: periodFinalRow.id,
+                label: `${studentName} — Def Total`,
+                currentValue: periodFinalRow.period_final === null ? null : Number(periodFinalRow.period_final),
+              })
+            }
+          >
+            {periodFinalRow?.period_final ? Number(periodFinalRow.period_final).toFixed(1) : '—'}
+          </button>
         </CardContent>
       </Card>
+
+      {adjustTarget && (
+        <AdjustFinalDialog
+          open
+          onOpenChange={(open) => !open && setAdjustTarget(null)}
+          type={adjustTarget.type}
+          id={adjustTarget.id}
+          label={adjustTarget.label}
+          currentValue={adjustTarget.currentValue}
+          groupSubjectId={groupSubjectId}
+          periodId={periodId}
+        />
+      )}
     </div>
   )
 }
@@ -183,6 +234,8 @@ function MobileGradeRow({
   readOnly,
   bold,
   onSave,
+  onAdjust,
+  adjusted,
 }: {
   label: string
   score: number | null
@@ -190,6 +243,8 @@ function MobileGradeRow({
   readOnly?: boolean
   bold?: boolean
   onSave?: (value: number | null) => void
+  onAdjust?: () => void
+  adjusted?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(score === null ? '' : String(score))
@@ -197,7 +252,10 @@ function MobileGradeRow({
 
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className={`text-sm ${bold ? 'font-semibold' : ''}`}>{label}</span>
+      <span className={`text-sm ${bold ? 'font-semibold' : ''}`}>
+        {label}
+        {adjusted && <span className="ml-1 text-xs">✎</span>}
+      </span>
       {editing ? (
         <input
           autoFocus
@@ -219,8 +277,12 @@ function MobileGradeRow({
         />
       ) : (
         <button
-          disabled={readOnly}
+          disabled={readOnly && !onAdjust}
           onClick={() => {
+            if (onAdjust) {
+              onAdjust()
+              return
+            }
             setDraft(score === null ? '' : String(score))
             setEditing(true)
           }}

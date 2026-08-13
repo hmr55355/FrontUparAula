@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Menu, Moon, Sun, UserCircle, X, ChevronDown } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { useAuthStore } from '@/store/authStore'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
@@ -19,6 +20,7 @@ import type { GroupSubject } from '@/types'
 
 export function AppLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const user = useAuthStore((s) => s.user)
   const logout = useAuthStore((s) => s.logout)
   const { isDark, toggle } = useThemeStore()
@@ -111,7 +113,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </div>
         )}
 
-        <main className="min-w-0 flex-1 p-4 pb-24">{children}</main>
+        <main className="min-w-0 flex-1 p-4 pb-24">
+          {/* key=pathname: si un módulo se rompe, cambiar de módulo desde el
+              sidebar (que queda fuera de este límite) remonta el contenido con
+              un ErrorBoundary limpio en vez de quedar atascado en la falla. */}
+          <ErrorBoundary key={location.pathname}>{children}</ErrorBoundary>
+        </main>
       </div>
     </div>
   )

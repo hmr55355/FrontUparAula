@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react'
 import axios from 'axios'
 
 import { Button } from '@/components/ui/button'
@@ -92,6 +92,17 @@ export function ConfigureSheetDialog({
     setSelectedIndex(0)
   }
 
+  const moveSection = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= sections.length) return
+    setSections((prev) => {
+      const next = [...prev]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+    setSelectedIndex((current) => (current === index ? target : current === target ? index : current))
+  }
+
   const setWeightMode = (mode: WeightMode) => {
     setWeightModes((prev) => ({ ...prev, [selectedIndex]: mode }))
     if (mode === 'automatic' && selected && selected.columns.length > 0) {
@@ -117,6 +128,15 @@ export function ConfigureSheetDialog({
   const updateColumn = (columnIndex: number, patch: Partial<GradeColumnDraft>) => {
     if (!selected) return
     const columns = selected.columns.map((c, i) => (i === columnIndex ? { ...c, ...patch } : c))
+    updateSection(selectedIndex, { columns })
+  }
+
+  const moveColumn = (columnIndex: number, direction: -1 | 1) => {
+    if (!selected) return
+    const target = columnIndex + direction
+    if (target < 0 || target >= selected.columns.length) return
+    const columns = [...selected.columns]
+    ;[columns[columnIndex], columns[target]] = [columns[target], columns[columnIndex]]
     updateSection(selectedIndex, { columns })
   }
 
@@ -199,18 +219,43 @@ export function ConfigureSheetDialog({
           <div className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase text-muted-foreground">Secciones</p>
             {sections.map((section, index) => (
-              <button
+              <div
                 key={index}
-                onClick={() => setSelectedIndex(index)}
-                className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-sm ${
+                className={`flex items-center gap-1 rounded-md border px-1 py-1 text-sm ${
                   index === selectedIndex ? 'border-primary bg-primary/5' : ''
                 }`}
               >
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: section.color }} />
-                  {section.name} ({section.weight}%)
-                </span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIndex(index)}
+                  className="flex flex-1 items-center gap-2 truncate px-1 py-0.5 text-left"
+                >
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: section.color }} />
+                  <span className="truncate">
+                    {section.name} ({section.weight}%)
+                  </span>
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={index === 0}
+                  onClick={() => moveSection(index, -1)}
+                >
+                  <ChevronUp className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  disabled={index === sections.length - 1}
+                  onClick={() => moveSection(index, 1)}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             ))}
             <Button variant="outline" size="sm" onClick={addSection}>
               <Plus className="h-4 w-4" /> Sección
@@ -336,9 +381,27 @@ export function ConfigureSheetDialog({
                           onChange={(e) => updateColumn(columnIndex, { weight: Number(e.target.value) })}
                         />
                       </div>
-                      <Button variant="ghost" size="icon" onClick={() => removeColumn(columnIndex)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-0.5">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={columnIndex === 0}
+                          onClick={() => moveColumn(columnIndex, -1)}
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          disabled={columnIndex === selected.columns.length - 1}
+                          onClick={() => moveColumn(columnIndex, 1)}
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => removeColumn(columnIndex)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                       {column.column_type === 'from_attendance' && (
                         <div className="col-span-5 grid grid-cols-3 gap-2 border-t pt-2">
                           <div className="space-y-1">

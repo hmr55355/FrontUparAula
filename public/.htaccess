@@ -1,0 +1,21 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Sirve archivos y carpetas reales tal cual (JS, CSS, íconos, manifest, sw.js, etc.)
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Cualquier otra ruta (las de React Router: /dashboard, /grades/1/3, etc.)
+  # se resuelve del lado del cliente — todas caen sobre index.html.
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Evita que el navegador cachee index.html de forma agresiva: cada deploy nuevo
+# debe verse reflejado de inmediato en vez de servir una versión vieja cacheada.
+<IfModule mod_headers.c>
+  <FilesMatch "index\.html$">
+    Header set Cache-Control "no-cache, must-revalidate"
+  </FilesMatch>
+</IfModule>

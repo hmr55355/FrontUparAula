@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from '@/components/ui/sonner'
 
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { PublicHome } from '@/pages/PublicHome'
 import { Login } from '@/pages/auth/Login'
 import { Register } from '@/pages/auth/Register'
@@ -63,45 +64,50 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/" element={<PublicHome />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password/:token" element={<ResetPassword />} />
-            <Route path="/onboarding" element={<Onboarding />} />
+        {/* Red de último recurso: cubre errores fuera del contenido de cada
+            módulo (AppLayout tiene su propio ErrorBoundary por ruta) — por
+            ejemplo en PrivateRoute o en el layout mismo. */}
+        <ErrorBoundary>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<PublicHome />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password/:token" element={<ResetPassword />} />
+              <Route path="/onboarding" element={<Onboarding />} />
 
-            <Route element={<PrivateRoute />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/my-courses" element={<MyCourses />} />
-              <Route path="/schedule" element={<Schedule />} />
-              <Route path="/attendance" element={<Attendance />} />
-              <Route path="/attendance/history" element={<AttendanceHistory />} />
-              <Route path="/behavior" element={<Behavior />} />
-              <Route path="/citations" element={<Citations />} />
-              <Route path="/observations" element={<Observations />} />
-              <Route path="/student/:id" element={<StudentProfile />} />
-              <Route path="/homeworks" element={<Homeworks />} />
-              <Route path="/homeworks/:homeworkId" element={<HomeworkDeliveries />} />
-              <Route path="/plans" element={<Plans />} />
-              <Route path="/copies" element={<Copies />} />
-              <Route path="/copies/:chargeId" element={<CopyChargeDetail />} />
-              <Route path="/reports" element={<Reports />} />
-              <Route path="/settings" element={<Configuracion />} />
-              <Route path="/grades/:groupSubjectId/:periodId" element={<GradeSheet />} />
-              <Route
-                path="/institution/settings"
-                element={
-                  <RoleGuard allow={['admin']}>
-                    <InstitutionSettings />
-                  </RoleGuard>
-                }
-              />
-            </Route>
-          </Routes>
-        </Suspense>
+              <Route element={<PrivateRoute />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/my-courses" element={<MyCourses />} />
+                <Route path="/schedule" element={<Schedule />} />
+                <Route path="/attendance" element={<Attendance />} />
+                <Route path="/attendance/history" element={<AttendanceHistory />} />
+                <Route path="/behavior" element={<Behavior />} />
+                <Route path="/citations" element={<Citations />} />
+                <Route path="/observations" element={<Observations />} />
+                <Route path="/student/:id" element={<StudentProfile />} />
+                <Route path="/homeworks" element={<Homeworks />} />
+                <Route path="/homeworks/:homeworkId" element={<HomeworkDeliveries />} />
+                <Route path="/plans" element={<Plans />} />
+                <Route path="/copies" element={<Copies />} />
+                <Route path="/copies/:chargeId" element={<CopyChargeDetail />} />
+                <Route path="/reports" element={<Reports />} />
+                <Route path="/settings" element={<Configuracion />} />
+                <Route path="/grades/:groupSubjectId/:periodId" element={<GradeSheet />} />
+                <Route
+                  path="/institution/settings"
+                  element={
+                    <RoleGuard allow={['admin']}>
+                      <InstitutionSettings />
+                    </RoleGuard>
+                  }
+                />
+              </Route>
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </BrowserRouter>
       <Toaster position="top-right" richColors />
     </QueryClientProvider>

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
+import { X } from 'lucide-react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { api } from '@/services/api/client'
 import { institutionsApi } from '@/services/api/institutions'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
@@ -38,6 +40,7 @@ export function InstitutionSettings() {
           <TabsTrigger value="teachers">Docentes</TabsTrigger>
           <TabsTrigger value="groups">Grupos</TabsTrigger>
           <TabsTrigger value="subjects">Materias</TabsTrigger>
+          <TabsTrigger value="assignments">Asignaciones</TabsTrigger>
         </TabsList>
         <TabsContent value="teachers">
           <TeachersPanel institutionId={institution.id} />
@@ -47,6 +50,9 @@ export function InstitutionSettings() {
         </TabsContent>
         <TabsContent value="subjects">
           <SubjectsPanel institutionId={institution.id} />
+        </TabsContent>
+        <TabsContent value="assignments">
+          <AssignmentsPanel institutionId={institution.id} />
         </TabsContent>
       </Tabs>
     </div>
@@ -106,6 +112,7 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
   const [inviteEmail, setInviteEmail] = useState('')
   const [createOpen, setCreateOpen] = useState(false)
   const [page, setPage] = useState(1)
+  const [coursesTeacher, setCoursesTeacher] = useState<Teacher | null>(null)
 
   const { data } = useQuery({
     queryKey: ['institutions', institutionId, 'teachers', page],
@@ -176,7 +183,10 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
                   <Badge variant={t.role === 'admin' ? 'default' : 'secondary'}>{t.role}</Badge>
                 </TableCell>
                 <TableCell>{t.status}</TableCell>
-                <TableCell>
+                <TableCell className="flex gap-1">
+                  <Button variant="ghost" size="sm" onClick={() => setCoursesTeacher(t)}>
+                    Cursos
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => remove.mutate(t.user_id)}>
                     Remover
                   </Button>
@@ -207,6 +217,15 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
       </CardContent>
 
       <CreateTeacherDialog open={createOpen} onOpenChange={setCreateOpen} institutionId={institutionId} />
+      {coursesTeacher && (
+        <TeacherCoursesDialog
+          open
+          onOpenChange={(open) => !open && setCoursesTeacher(null)}
+          institutionId={institutionId}
+          teacherUserId={coursesTeacher.user_id}
+          teacherName={coursesTeacher.name}
+        />
+      )}
     </Card>
   )
 }
@@ -290,6 +309,174 @@ function CreateTeacherDialog({
             {create.isPending ? 'Creando...' : 'Crear docente'}
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function TeacherCoursesDialog({
+  open,
+  onOpenChange,
+  institutionId,
+  teacherUserId,
+  teacherName,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  institutionId: number
+  teacherUserId: number
+  teacherName: string
+}) {
+  const queryClient = useQueryClient()
+  const [subjectId, setSubjectId] = useState<number | ''>('')
+  const [groupId, setGroupId] = useState<number | ''>('')
+
+  const { data: grid } = useQuery({
+    queryKey: ['institutions', institutionId, 'assignment-grid'],
+    queryFn: () =>
+      api.get<AssignmentGridResponse>(`/institutions/${institutionId}/assignment-grid`).then((r) => r.data),
+    staleTime: 3 * 60 * 1000,
+    enabled: open,
+  })
+
+  const { data: academicYears } = useQuery({
+    queryKey: ['academic-years', institutionId],
+    queryFn: () =>
+      api.get<{ data: { id: number; is_active: boolean }[] }>('/academic-years', { params: { institutionId } }).then(
+        (r) => r.data.data
+      ),
+    staleTime: 3 * 60 * 1000,
+    enabled: open,
+  })
+  const activeYear = academicYears?.find((y) => y.is_active)
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'assignment-grid'] })
+
+  const assign = useMutation({
+    mutationFn: (vars: { groupId: number; subjectId: number }) =>
+      api.post(`/institutions/${institutionId}/assign-course`, {
+        group_id: vars.groupId,
+        subject_id: vars.subjectId,
+        user_id: teacherUserId,
+        academic_year_id: activeYear?.id,
+      }),
+    onSuccess: () => {
+      toast.success('Curso asignado.')
+      setSubjectId('')
+      setGroupId('')
+      invalidate()
+    },
+    onError: () => toast.error('No pudimos asignar el curso.'),
+  })
+
+  const unassign = useMutation({
+    mutationFn: (vars: { groupId: number; subjectId: number }) =>
+      api.delete(`/institutions/${institutionId}/unassign-course`, {
+        data: { group_id: vars.groupId, subject_id: vars.subjectId, academic_year_id: activeYear?.id },
+      }),
+    onSuccess: () => {
+      toast.success('Asignación removida.')
+      invalidate()
+    },
+    onError: () => toast.error('No pudimos quitar la asignación.'),
+  })
+
+  const myAssignments = grid?.assignments.filter((a) => a.user_id === teacherUserId) ?? []
+  const takenPairs = new Set((grid?.assignments ?? []).map((a) => `${a.group_id}:${a.subject_id}`))
+  const groupsForSubject = grid && subjectId ? grid.groups.filter((g) => !takenPairs.has(`${g.id}:${subjectId}`)) : []
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Cursos de {teacherName}</DialogTitle>
+        </DialogHeader>
+
+        {!grid ? (
+          <p className="text-sm text-muted-foreground">Cargando...</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {myAssignments.length === 0 && (
+              <p className="text-sm text-muted-foreground">Sin cursos asignados todavía.</p>
+            )}
+            {myAssignments.map((a) => {
+              const group = grid.groups.find((g) => g.id === a.group_id)
+              const subject = grid.subjects.find((s) => s.id === a.subject_id)
+              return (
+                <div key={a.id} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <span>
+                    {group?.name} ({group?.grade_level}) —{' '}
+                    <span style={{ color: subject?.color }}>{subject?.name}</span>
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={unassign.isPending}
+                    onClick={() => unassign.mutate({ groupId: a.group_id, subjectId: a.subject_id })}
+                  >
+                    Quitar
+                  </Button>
+                </div>
+              )
+            })}
+
+            <div className="border-t pt-3">
+              <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Agregar curso</p>
+              {!activeYear && (
+                <p className="mb-2 text-sm text-warning">No hay un año académico activo.</p>
+              )}
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Materia</Label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-transparent px-2 text-sm"
+                    value={subjectId}
+                    onChange={(e) => {
+                      setSubjectId(e.target.value ? Number(e.target.value) : '')
+                      setGroupId('')
+                    }}
+                  >
+                    <option value="">Selecciona...</option>
+                    {grid.subjects.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Grupo</Label>
+                  <select
+                    className="h-10 rounded-md border border-input bg-transparent px-2 text-sm"
+                    value={groupId}
+                    disabled={!subjectId}
+                    onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : '')}
+                  >
+                    <option value="">Selecciona...</option>
+                    {groupsForSubject.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name} ({g.grade_level})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={!subjectId || !groupId || !activeYear || assign.isPending}
+                  onClick={() => subjectId && groupId && assign.mutate({ groupId, subjectId })}
+                >
+                  Agregar
+                </Button>
+              </div>
+              {!!subjectId && groupsForSubject.length === 0 && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Todos los grupos ya tienen un docente asignado en esta materia.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -431,6 +618,187 @@ function SubjectsPanel({ institutionId }: { institutionId: number }) {
               {s.name}
             </Badge>
           ))}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+interface AssignmentGridGroup {
+  id: number
+  name: string
+  grade_level: string
+  section: string | null
+}
+
+interface AssignmentGridSubject {
+  id: number
+  name: string
+  color: string
+}
+
+interface AssignmentGridAssignment {
+  id: number
+  group_id: number
+  subject_id: number
+  user_id: number
+  teacher?: { id: number; name: string }
+}
+
+interface AssignmentGridResponse {
+  groups: AssignmentGridGroup[]
+  subjects: AssignmentGridSubject[]
+  assignments: AssignmentGridAssignment[]
+}
+
+function AssignmentsPanel({ institutionId }: { institutionId: number }) {
+  const queryClient = useQueryClient()
+
+  const { data: grid } = useQuery({
+    queryKey: ['institutions', institutionId, 'assignment-grid'],
+    queryFn: () =>
+      api.get<AssignmentGridResponse>(`/institutions/${institutionId}/assignment-grid`).then((r) => r.data),
+    staleTime: 3 * 60 * 1000,
+  })
+
+  const { data: teachers } = useQuery({
+    queryKey: ['institutions', institutionId, 'teachers', 'assignment-picker'],
+    queryFn: () =>
+      api
+        .get<{ data: Teacher[] }>(`/institutions/${institutionId}/teachers`, { params: { page: 1 } })
+        .then((r) => r.data.data),
+    staleTime: 3 * 60 * 1000,
+  })
+  const teacherOptions: SearchableSelectOption[] = (teachers ?? [])
+    .filter((t) => t.status === 'active')
+    .map((t) => ({ id: t.user_id, label: t.name }))
+
+  const { data: academicYears } = useQuery({
+    queryKey: ['academic-years', institutionId],
+    queryFn: () =>
+      api.get<{ data: { id: number; is_active: boolean }[] }>('/academic-years', { params: { institutionId } }).then(
+        (r) => r.data.data
+      ),
+    staleTime: 3 * 60 * 1000,
+  })
+  const activeYear = academicYears?.find((y) => y.is_active)
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'assignment-grid'] })
+
+  const assign = useMutation({
+    mutationFn: (vars: { groupId: number; subjectId: number; userId: number }) =>
+      api.post(`/institutions/${institutionId}/assign-course`, {
+        group_id: vars.groupId,
+        subject_id: vars.subjectId,
+        user_id: vars.userId,
+        academic_year_id: activeYear?.id,
+      }),
+    onSuccess: () => {
+      toast.success('Curso asignado.')
+      invalidate()
+    },
+    onError: () => toast.error('No pudimos asignar el curso.'),
+  })
+
+  const unassign = useMutation({
+    mutationFn: (vars: { groupId: number; subjectId: number }) =>
+      api.delete(`/institutions/${institutionId}/unassign-course`, {
+        data: { group_id: vars.groupId, subject_id: vars.subjectId, academic_year_id: activeYear?.id },
+      }),
+    onSuccess: () => {
+      toast.success('Asignación removida.')
+      invalidate()
+    },
+    onError: () => toast.error('No pudimos quitar la asignación.'),
+  })
+
+  if (!grid) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">Cargando...</CardContent>
+      </Card>
+    )
+  }
+
+  if (grid.groups.length === 0 || grid.subjects.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          Crea al menos un grupo y una materia para poder asignar cursos a los docentes.
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Asignaciones</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {!activeYear && (
+          <p className="mb-3 rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
+            No hay un año académico activo — no se pueden crear asignaciones nuevas.
+          </p>
+        )}
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr>
+                <th className="sticky left-0 z-10 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
+                  Grupo
+                </th>
+                {grid.subjects.map((s) => (
+                  <th
+                    key={s.id}
+                    className="min-w-[180px] border-b border-l px-3 py-2 text-center text-white"
+                    style={{ backgroundColor: s.color }}
+                  >
+                    {s.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {grid.groups.map((g) => (
+                <tr key={g.id} className="hover:bg-muted/30">
+                  <td className="sticky left-0 z-10 border-b border-r bg-card px-3 py-2 font-medium">
+                    {g.name} ({g.grade_level})
+                  </td>
+                  {grid.subjects.map((s) => {
+                    const assignment = grid.assignments.find((a) => a.group_id === g.id && a.subject_id === s.id)
+                    return (
+                      <td key={s.id} className="min-w-[180px] border-b border-l p-2 text-center">
+                        {assignment ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <span className="truncate text-sm">{assignment.teacher?.name ?? '—'}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              disabled={unassign.isPending}
+                              onClick={() => unassign.mutate({ groupId: g.id, subjectId: s.id })}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <SearchableSelect
+                            value=""
+                            onChange={(userId) => assign.mutate({ groupId: g.id, subjectId: s.id, userId })}
+                            options={teacherOptions}
+                            placeholder="Sin asignar"
+                            disabled={!activeYear || assign.isPending}
+                          />
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </CardContent>
     </Card>

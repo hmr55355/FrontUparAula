@@ -2,7 +2,10 @@ import { Fragment, useLayoutEffect, useRef, useState, type KeyboardEvent } from 
 
 import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
+import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import type { GradeSheetResponse } from '@/types/grades'
+
+type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
 
 export function GradeSheetTable({
   sheet,
@@ -14,8 +17,10 @@ export function GradeSheetTable({
   periodId: number
 }) {
   const saveGrade = useSaveGrade(groupSubjectId, periodId)
+  const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
 
   return (
+    <>
     <div className="hidden overflow-x-auto rounded-lg border lg:block">
       <table className="w-full border-collapse text-sm">
         <thead>
@@ -59,7 +64,8 @@ export function GradeSheetTable({
         </thead>
         <tbody>
           {sheet.students.map((student) => {
-            const periodFinal = sheet.period_finals[student.id]?.period_final
+            const periodFinalRow = sheet.period_finals[student.id]
+            const studentName = `${student.first_name} ${student.last_name}`
             return (
               <tr key={student.id} className="hover:bg-muted/30">
                 <td className="sticky left-0 z-10 border-b border-r bg-card px-3 py-2 font-medium">
@@ -67,7 +73,7 @@ export function GradeSheetTable({
                 </td>
                 <td className="sticky left-[140px] z-10 border-b border-r bg-card px-3 py-2">{student.first_name}</td>
                 {sheet.sections.map((section) => {
-                  const sectionFinal = sheet.section_finals[student.id]?.[section.id]?.section_final
+                  const sectionFinalRow = sheet.section_finals[student.id]?.[section.id]
                   return (
                     <Fragment key={section.id}>
                       {section.columns.map((column) => {
@@ -87,18 +93,66 @@ export function GradeSheetTable({
                         )
                       })}
                       {section.has_section_final && (
-                        <ReadOnlyCell score={sectionFinal ?? null} minPassing={sheet.min_passing_grade} highlight />
+                        <ReadOnlyCell
+                          score={sectionFinalRow?.section_final ?? null}
+                          minPassing={sheet.min_passing_grade}
+                          highlight
+                          adjusted={sectionFinalRow?.manually_adjusted}
+                          onClick={
+                            sectionFinalRow
+                              ? () =>
+                                  setAdjustTarget({
+                                    type: 'section',
+                                    id: sectionFinalRow.id,
+                                    label: `${studentName} — ${section.section_final_label}`,
+                                    currentValue:
+                                      sectionFinalRow.section_final === null ? null : Number(sectionFinalRow.section_final),
+                                  })
+                              : undefined
+                          }
+                        />
                       )}
                     </Fragment>
                   )
                 })}
-                <ReadOnlyCell score={periodFinal ?? null} minPassing={sheet.min_passing_grade} highlight bold />
+                <ReadOnlyCell
+                  score={periodFinalRow?.period_final ?? null}
+                  minPassing={sheet.min_passing_grade}
+                  highlight
+                  bold
+                  adjusted={periodFinalRow?.manually_adjusted}
+                  onClick={
+                    periodFinalRow
+                      ? () =>
+                          setAdjustTarget({
+                            type: 'period',
+                            id: periodFinalRow.id,
+                            label: `${studentName} — Def Total`,
+                            currentValue: periodFinalRow.period_final === null ? null : Number(periodFinalRow.period_final),
+                          })
+                      : undefined
+                  }
+                />
               </tr>
             )
           })}
         </tbody>
       </table>
     </div>
+
+    {adjustTarget && (
+      <AdjustFinalDialog
+        open
+        onOpenChange={(open) => !open && setAdjustTarget(null)}
+        type={adjustTarget.type}
+        id={adjustTarget.id}
+        label={adjustTarget.label}
+        currentValue={adjustTarget.currentValue}
+        groupSubjectId={groupSubjectId}
+        periodId={periodId}
+      />
+    )}
+    </>
   )
 }
 
@@ -107,21 +161,43 @@ function ReadOnlyCell({
   minPassing,
   highlight,
   bold,
+  adjusted,
+  onClick,
 }: {
   score: string | number | null
   minPassing: number
   highlight?: boolean
   bold?: boolean
+  adjusted?: boolean
+  onClick?: () => void
 }) {
   const numeric = score === null ? null : Number(score)
   const { background, text } = getGradeColor(numeric, minPassing)
+  const content = numeric !== null ? numeric.toFixed(1) : '—'
+
+  if (onClick) {
+    return (
+      <td className={`border-b border-l p-0 text-center ${bold ? 'font-semibold' : ''} ${highlight ? '' : ''}`}>
+        <button
+          type="button"
+          onClick={onClick}
+          className="block w-full px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
+          style={{ backgroundColor: background, color: text }}
+          title={adjusted ? 'Ajustada manualmente — clic para modificar' : 'Clic para ajustar manualmente'}
+        >
+          {content}
+          {adjusted && <span className="ml-1 text-xs">✎</span>}
+        </button>
+      </td>
+    )
+  }
 
   return (
     <td
       className={`border-b border-l px-2 py-2 text-center ${bold ? 'font-semibold' : ''} ${highlight ? '' : ''}`}
       style={{ backgroundColor: background, color: text }}
     >
-      {numeric !== null ? numeric.toFixed(1) : '—'}
+      {content}
     </td>
   )
 }
