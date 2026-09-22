@@ -25,6 +25,7 @@ const COLUMN_TYPE_LABELS: Record<GradeColumnDraft['column_type'], string> = {
   from_attendance: 'Calculada desde asistencia',
   section_average: 'Promedio de sección',
   custom_formula: 'Fórmula personalizada',
+  from_participation: 'Calculada desde participaciones',
 }
 
 type WeightMode = 'manual' | 'automatic'

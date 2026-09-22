@@ -13,17 +13,18 @@ import { useActiveCourseGroup } from '@/hooks/useActiveCourseGroup'
 import { CLASS_PLAN_STATUS_BADGE, CLASS_PLAN_STATUS_DOT, CLASS_PLAN_STATUS_LABELS } from '@/types/classPlans'
 import type { ClassPlan } from '@/types/classPlans'
 import { ClassPlanDialog } from '@/pages/plans/ClassPlanDialog'
+import { localDateString } from '@/utils/dateHelpers'
 
 function daysAgo(n: number) {
   const d = new Date()
   d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
+  return localDateString(d)
 }
 
 function monthRange(monthDate: Date) {
   const start = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
   const end = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
-  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) }
+  return { from: localDateString(start), to: localDateString(end) }
 }
 
 export function Plans() {
@@ -84,7 +85,7 @@ export function Plans() {
     const cells: Array<{ date: string; plan?: ClassPlan } | null> = []
     for (let i = 0; i < firstWeekday; i++) cells.push(null)
     for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr = new Date(month.getFullYear(), month.getMonth(), d).toISOString().slice(0, 10)
+      const dateStr = localDateString(new Date(month.getFullYear(), month.getMonth(), d))
       const plan = calendarPlans?.find((p) => p.date.slice(0, 10) === dateStr)
       cells.push({ date: dateStr, plan })
     }

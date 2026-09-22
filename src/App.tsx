@@ -11,6 +11,7 @@ import { ForgotPassword } from '@/pages/auth/ForgotPassword'
 import { ResetPassword } from '@/pages/auth/ResetPassword'
 import { Onboarding } from '@/pages/onboarding/Onboarding'
 import { PrivateRoute } from '@/components/layout/PrivateRoute'
+import { TeacherViewGuard } from '@/components/layout/TeacherViewGuard'
 import { RoleGuard } from '@/components/layout/RoleGuard'
 
 // Todo lo que vive detrás de PrivateRoute se carga solo después de iniciar
@@ -22,6 +23,27 @@ const MyCourses = lazy(() => import('@/pages/MyCourses').then((m) => ({ default:
 const GradeSheet = lazy(() => import('@/pages/grades/GradeSheet').then((m) => ({ default: m.GradeSheet })))
 const Schedule = lazy(() => import('@/pages/schedule/Schedule').then((m) => ({ default: m.Schedule })))
 const Attendance = lazy(() => import('@/pages/attendance/Attendance').then((m) => ({ default: m.Attendance })))
+const Monitors = lazy(() => import('@/pages/monitors/Monitors').then((m) => ({ default: m.Monitors })))
+const MonitorReview = lazy(() => import('@/pages/monitors/MonitorReview').then((m) => ({ default: m.MonitorReview })))
+const Participations = lazy(() =>
+  import('@/pages/participations/Participations').then((m) => ({ default: m.Participations }))
+)
+const MonitorLayout = lazy(() =>
+  import('@/components/layout/MonitorLayout').then((m) => ({ default: m.MonitorLayout }))
+)
+const MonitorAttendance = lazy(() =>
+  import('@/pages/monitor/MonitorAttendance').then((m) => ({ default: m.MonitorAttendance }))
+)
+const MonitorParticipation = lazy(() =>
+  import('@/pages/monitor/MonitorParticipation').then((m) => ({ default: m.MonitorParticipation }))
+)
+const MonitorBehavior = lazy(() => import('@/pages/monitor/MonitorBehavior').then((m) => ({ default: m.MonitorBehavior })))
+const MonitorSubmissions = lazy(() =>
+  import('@/pages/monitor/MonitorSubmissions').then((m) => ({ default: m.MonitorSubmissions }))
+)
+const AttendanceSheet = lazy(() =>
+  import('@/pages/attendance/AttendanceSheet').then((m) => ({ default: m.AttendanceSheet }))
+)
 const AttendanceHistory = lazy(() =>
   import('@/pages/attendance/AttendanceHistory').then((m) => ({ default: m.AttendanceHistory }))
 )
@@ -77,25 +99,37 @@ function App() {
               <Route path="/reset-password/:token" element={<ResetPassword />} />
               <Route path="/onboarding" element={<Onboarding />} />
 
+              {/* App del monitor de curso: layout propio, sin nada del docente. */}
+              <Route path="/monitor" element={<MonitorLayout />}>
+                <Route index element={<MonitorAttendance />} />
+                <Route path="participation" element={<MonitorParticipation />} />
+                <Route path="behavior" element={<MonitorBehavior />} />
+                <Route path="submissions" element={<MonitorSubmissions />} />
+              </Route>
+
               <Route element={<PrivateRoute />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/profile" element={<Profile />} />
-                <Route path="/my-courses" element={<MyCourses />} />
-                <Route path="/schedule" element={<Schedule />} />
-                <Route path="/attendance" element={<Attendance />} />
-                <Route path="/attendance/history" element={<AttendanceHistory />} />
-                <Route path="/behavior" element={<Behavior />} />
-                <Route path="/citations" element={<Citations />} />
-                <Route path="/observations" element={<Observations />} />
-                <Route path="/student/:id" element={<StudentProfile />} />
-                <Route path="/homeworks" element={<Homeworks />} />
-                <Route path="/homeworks/:homeworkId" element={<HomeworkDeliveries />} />
-                <Route path="/plans" element={<Plans />} />
-                <Route path="/copies" element={<Copies />} />
-                <Route path="/copies/:chargeId" element={<CopyChargeDetail />} />
+                <Route path="/my-courses" element={<TeacherViewGuard><MyCourses /></TeacherViewGuard>} />
+                <Route path="/schedule" element={<TeacherViewGuard><Schedule /></TeacherViewGuard>} />
+                <Route path="/attendance" element={<TeacherViewGuard><Attendance /></TeacherViewGuard>} />
+                <Route path="/attendance/history" element={<TeacherViewGuard><AttendanceHistory /></TeacherViewGuard>} />
+                <Route path="/attendance/sheet" element={<TeacherViewGuard><AttendanceSheet /></TeacherViewGuard>} />
+                <Route path="/participations" element={<TeacherViewGuard><Participations /></TeacherViewGuard>} />
+                <Route path="/monitors" element={<TeacherViewGuard><Monitors /></TeacherViewGuard>} />
+                <Route path="/monitors/reviews/:submissionId" element={<TeacherViewGuard><MonitorReview /></TeacherViewGuard>} />
+                <Route path="/behavior" element={<TeacherViewGuard><Behavior /></TeacherViewGuard>} />
+                <Route path="/citations" element={<TeacherViewGuard><Citations /></TeacherViewGuard>} />
+                <Route path="/observations" element={<TeacherViewGuard><Observations /></TeacherViewGuard>} />
+                <Route path="/student/:id" element={<TeacherViewGuard><StudentProfile /></TeacherViewGuard>} />
+                <Route path="/homeworks" element={<TeacherViewGuard><Homeworks /></TeacherViewGuard>} />
+                <Route path="/homeworks/:homeworkId" element={<TeacherViewGuard><HomeworkDeliveries /></TeacherViewGuard>} />
+                <Route path="/plans" element={<TeacherViewGuard><Plans /></TeacherViewGuard>} />
+                <Route path="/copies" element={<TeacherViewGuard><Copies /></TeacherViewGuard>} />
+                <Route path="/copies/:chargeId" element={<TeacherViewGuard><CopyChargeDetail /></TeacherViewGuard>} />
                 <Route path="/reports" element={<Reports />} />
                 <Route path="/settings" element={<Configuracion />} />
-                <Route path="/grades/:groupSubjectId/:periodId" element={<GradeSheet />} />
+                <Route path="/grades/:groupSubjectId/:periodId" element={<TeacherViewGuard><GradeSheet /></TeacherViewGuard>} />
                 <Route
                   path="/institution/settings"
                   element={

@@ -6,16 +6,20 @@ export interface GradeColorResult {
 /**
  * Centralized grade color-coding — use everywhere a score is rendered,
  * never hardcode grade colors inline (per UparAula design spec).
+ * Los colores son variables CSS (definidas en index.css para claro y oscuro),
+ * así el semáforo se adapta al tema sin que cada pantalla lo maneje.
+ * Rojo: por debajo de la nota mínima. Amarillo: desde la mínima hasta
+ * mínima + 2 (6.0–7.9 con mínima 6). Verde: desde mínima + 2.
  */
 export function getGradeColor(score: number | null | undefined, minPassing: number): GradeColorResult {
   if (score === null || score === undefined) {
-    return { background: '#FFFFFF', text: '#9CA3AF' }
+    return { background: 'var(--grade-empty-bg)', text: 'var(--grade-empty-text)' }
   }
   if (score < minPassing) {
-    return { background: '#FFCDD2', text: '#C62828' }
+    return { background: 'var(--grade-fail-bg)', text: 'var(--grade-fail-text)' }
   }
-  if (score < minPassing + 1) {
-    return { background: '#FFF9C4', text: '#F57C00' }
+  if (score < minPassing + 2) {
+    return { background: 'var(--grade-warn-bg)', text: 'var(--grade-warn-text)' }
   }
-  return { background: '#C8E6C9', text: '#2E7D32' }
+  return { background: 'var(--grade-pass-bg)', text: 'var(--grade-pass-text)' }
 }

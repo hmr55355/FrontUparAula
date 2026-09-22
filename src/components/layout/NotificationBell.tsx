@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ const PRIORITY_DOT: Record<NotificationPriority, string> = {
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const { data } = useQuery({
     queryKey: ['notifications'],
@@ -90,7 +92,15 @@ export function NotificationBell() {
                 {notifications.map((n) => (
                   <button
                     key={n.id}
-                    onClick={() => markRead(n.id)}
+                    onClick={() => {
+                      markRead(n.id)
+                      // Notificaciones con destino (ej. "tu monitor registró cambios") llevan a la pantalla a revisar.
+                      const url = typeof n.data?.url === 'string' ? n.data.url : null
+                      if (url) {
+                        setOpen(false)
+                        navigate(url)
+                      }
+                    }}
                     className={`flex w-full flex-col gap-0.5 rounded px-3 py-2 text-left text-sm hover:bg-muted ${n.read_at ? 'opacity-60' : ''}`}
                   >
                     <span className="flex items-center gap-2 font-medium">

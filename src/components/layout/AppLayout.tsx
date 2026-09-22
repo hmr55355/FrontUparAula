@@ -15,7 +15,7 @@ import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import { groupSubjectsApi } from '@/services/api/groupSubjects'
 import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
-import { NAV_ITEMS, type NavItem } from '@/config/navItems'
+import { navItemsFor, type NavItem } from '@/config/navItems'
 import type { GroupSubject } from '@/types'
 
 export function AppLayout({ children }: { children: ReactNode }) {
@@ -28,7 +28,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { data: institution } = useCurrentInstitution()
   const effectiveRole = useEffectiveRole()
   const isRealAdmin = institution?.my_role === 'admin'
-  const visibleNavItems = NAV_ITEMS.filter((item) => item.to !== '/institution/settings' || effectiveRole === 'admin')
+  const visibleNavItems = navItemsFor(effectiveRole)
+  // El curso activo es contexto del aula: en la vista Administrador no aplica.
+  const showCourseSwitcher = effectiveRole !== 'admin'
 
   const { data: courses } = useQuery({
     queryKey: ['group-subjects', 'mine'],
@@ -64,7 +66,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
         </NavLink>
 
         <div className="relative ml-2 hidden flex-1 sm:block">
-          <CourseSwitcher courses={courses} />
+          {showCourseSwitcher ? (
+            <CourseSwitcher courses={courses} />
+          ) : (
+            <span className="text-sm font-medium text-muted-foreground">Vista Administrador</span>
+          )}
         </div>
 
         <div className="ml-auto flex items-center gap-1">
@@ -99,10 +105,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
                 </button>
               </div>
 
-              <div className="relative mb-3 sm:hidden">
-                <p className="mb-1 px-1 text-xs font-medium uppercase text-muted-foreground">Curso activo</p>
-                <CourseSwitcher courses={courses} fullWidth />
-              </div>
+              {showCourseSwitcher && (
+                <div className="relative mb-3 sm:hidden">
+                  <p className="mb-1 px-1 text-xs font-medium uppercase text-muted-foreground">Curso activo</p>
+                  <CourseSwitcher courses={courses} fullWidth />
+                </div>
+              )}
 
               {isRealAdmin && <ViewModeToggle />}
               <Nav items={visibleNavItems} onNavigate={() => setDrawerOpen(false)} />

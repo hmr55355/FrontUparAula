@@ -3,7 +3,9 @@ import { Fragment, useLayoutEffect, useRef, useState, type KeyboardEvent } from 
 import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
-import type { GradeSheetResponse } from '@/types/grades'
+import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
+import type { GradeColumn, GradeSheetResponse } from '@/types/grades'
+import { ListChecks } from 'lucide-react'
 
 type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
 
@@ -18,6 +20,7 @@ export function GradeSheetTable({
 }) {
   const saveGrade = useSaveGrade(groupSubjectId, periodId)
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
+  const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
 
   return (
     <>
@@ -50,7 +53,19 @@ export function GradeSheetTable({
               <Fragment key={section.id}>
                 {section.columns.map((column) => (
                   <th key={column.id} className="min-w-[72px] border-b border-l px-2 py-2 text-center font-medium">
-                    {column.short_name ?? column.name}
+                    {column.column_type === 'manual' ? (
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded px-1 hover:bg-muted"
+                        title="Poner la misma nota a todos en esta actividad"
+                        onClick={() => setBulkColumn(column)}
+                      >
+                        {column.short_name || column.name}
+                        <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
+                    ) : (
+                      column.short_name || column.name
+                    )}
                   </th>
                 ))}
                 {section.has_section_final && (
@@ -139,6 +154,17 @@ export function GradeSheetTable({
         </tbody>
       </table>
     </div>
+
+    {bulkColumn && (
+      <BulkColumnGradeDialog
+        open
+        onOpenChange={(open) => !open && setBulkColumn(null)}
+        sheet={sheet}
+        column={bulkColumn}
+        groupSubjectId={groupSubjectId}
+        periodId={periodId}
+      />
+    )}
 
     {adjustTarget && (
       <AdjustFinalDialog

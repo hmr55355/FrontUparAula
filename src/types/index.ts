@@ -11,7 +11,10 @@ export interface InstitutionMembership {
 export interface User {
   id: number
   name: string
-  email: string
+  /** Null para cuentas de monitor, que entran con `username`. */
+  email: string | null
+  username?: string | null
+  account_type?: 'teacher' | 'monitor'
   avatar: string | null
   phone: string | null
   notification_preferences: Record<string, boolean> | null
@@ -57,10 +60,44 @@ export interface Group {
   id: number
   institution_id: number
   academic_year_id: number
+  grade_level_id: number | null
+  shift_id: number | null
   name: string
+  /** Texto heredado (ej. "10"); el grado real es grade_level_id. */
   grade_level: string
   section: string | null
   student_count: number
+  shift?: { id: number; name: string } | null
+}
+
+/** Grado escolar (Sexto…Once). */
+export interface GradeLevel {
+  id: number
+  name: string
+  level: number | null
+  sort_order: number
+  groups_count?: number
+  subject_ids?: number[]
+}
+
+export type ClassBlockType = 'clase' | 'descanso'
+
+/** Bloque del horario de una jornada (hora de clase o descanso). Horas en HH:mm[:ss]. */
+export interface ClassBlock {
+  id?: number
+  type: ClassBlockType
+  label: string
+  start_time: string
+  end_time: string
+}
+
+/** Jornada (mañana, tarde…): sus grupos y su propio horario de bloques. */
+export interface Shift {
+  id: number
+  name: string
+  sort_order: number
+  groups_count?: number
+  class_blocks?: ClassBlock[]
 }
 
 export interface Subject {
@@ -69,6 +106,7 @@ export interface Subject {
   name: string
   code: string | null
   color: string
+  grade_level_ids?: number[]
 }
 
 export interface GroupSubject {

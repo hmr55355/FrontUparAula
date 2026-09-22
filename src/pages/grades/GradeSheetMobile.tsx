@@ -6,7 +6,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
-import type { GradeSheetResponse } from '@/types/grades'
+import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
+import type { GradeColumn, GradeSheetResponse } from '@/types/grades'
 
 type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
 
@@ -22,6 +23,7 @@ export function GradeSheetMobile({
   periodId: number
 }) {
   const [view, setView] = useState<View>({ mode: 'list' })
+  const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
   const saveGrade = useSaveGrade(groupSubjectId, periodId)
 
   if (view.mode === 'detail') {
@@ -43,6 +45,16 @@ export function GradeSheetMobile({
   if (view.mode === 'pick-column') {
     return (
       <div className="flex flex-col gap-2 lg:hidden">
+        {bulkColumn && (
+          <BulkColumnGradeDialog
+            open
+            onOpenChange={(open) => !open && setBulkColumn(null)}
+            sheet={sheet}
+            column={bulkColumn}
+            groupSubjectId={groupSubjectId}
+            periodId={periodId}
+          />
+        )}
         <Button variant="ghost" className="w-fit" onClick={() => setView({ mode: 'list' })}>
           <ChevronLeft className="h-4 w-4" /> Volver
         </Button>
@@ -54,13 +66,21 @@ export function GradeSheetMobile({
               {section.columns
                 .filter((c) => c.column_type === 'manual')
                 .map((column) => (
-                  <button
-                    key={column.id}
-                    onClick={() => setView({ mode: 'quick', columnId: column.id })}
-                    className="rounded-md border px-3 py-2 text-left text-sm hover:bg-muted"
-                  >
-                    {column.name}
-                  </button>
+                  <div key={column.id} className="flex gap-1">
+                    <button
+                      onClick={() => setView({ mode: 'quick', columnId: column.id })}
+                      className="flex-1 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted"
+                    >
+                      {column.name}
+                    </button>
+                    <button
+                      onClick={() => setBulkColumn(column)}
+                      className="rounded-md border px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
+                      title="Poner la misma nota a todos"
+                    >
+                      Misma nota a todos
+                    </button>
+                  </div>
                 ))}
             </div>
           </div>

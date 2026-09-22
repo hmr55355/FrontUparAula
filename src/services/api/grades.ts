@@ -19,6 +19,21 @@ export const gradesApi = {
   adjustSectionFinal: (id: number, payload: { section_final: number; adjustment_reason: string }) =>
     api.put<{ data: SectionFinal }>(`/section-finals/${id}/adjust`, payload).then((r) => r.data.data),
 
+  excelTemplate: (groupSubjectId: number, periodId: number) =>
+    api
+      .get<Blob>('/grades/excel-template', { params: { groupSubjectId, periodId }, responseType: 'blob' })
+      .then((r) => r.data),
+
+  excelImport: (groupSubjectId: number, periodId: number, file: File) => {
+    const form = new FormData()
+    form.append('groupSubjectId', String(groupSubjectId))
+    form.append('periodId', String(periodId))
+    form.append('file', file)
+    return api
+      .post<{ saved: number; skipped: number; errors: string[] }>('/grades/excel-import', form)
+      .then((r) => r.data)
+  },
+
   adjustPeriodFinal: (id: number, payload: { period_final: number; adjustment_reason: string }) =>
     api.put<{ data: PeriodFinal }>(`/period-finals/${id}/adjust`, payload).then((r) => r.data.data),
 }

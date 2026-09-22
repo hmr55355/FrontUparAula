@@ -29,6 +29,18 @@ export interface AttendanceDayResponse {
   records: Record<number, AttendanceRecord>
 }
 
+export interface AttendanceSheetCell {
+  id: number
+  status: AttendanceStatus
+  justification: string | null
+}
+
+export interface AttendanceSheetResponse {
+  students: AttendanceStudent[]
+  dates: string[]
+  records: Record<number, Record<string, AttendanceSheetCell>>
+}
+
 export interface AttendanceStatsRow {
   student_id: number
   student_name: string

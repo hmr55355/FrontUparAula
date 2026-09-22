@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { copyChargesApi } from '@/services/api/copyCharges'
 import type { CopyChargeStudent, StudentCopyPayment } from '@/types/copies'
+import { localDateString } from '@/utils/dateHelpers'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateString()
 }
 
 export function PaymentDialog({

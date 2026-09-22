@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { copyChargesApi } from '@/services/api/copyCharges'
+import { localDateString } from '@/utils/dateHelpers'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateString()
 }
 
 export function NewChargeDialog({

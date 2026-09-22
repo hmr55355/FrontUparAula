@@ -10,6 +10,7 @@ import { groupsApi } from '@/services/api/groups'
 import { observationsApi } from '@/services/api/observations'
 import { OBSERVATION_TYPE_LABELS } from '@/types/observations'
 import type { ObservationType } from '@/types/observations'
+import { localDateString } from '@/utils/dateHelpers'
 
 export function NewObservationDialog({
   open,
@@ -56,7 +57,7 @@ export function NewObservationDialog({
         student_id: studentId,
         group_id: groupId,
         period_id: periodId,
-        date: new Date().toISOString().slice(0, 10),
+        date: localDateString(),
         type,
         content,
         is_private: isPrivate,

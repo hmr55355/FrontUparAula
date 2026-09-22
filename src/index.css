@@ -18,6 +18,20 @@
     --destructive: 0 65% 45%;
     --destructive-foreground: 0 0% 100%;
     --radius: 0.6rem;
+
+    /* Semáforo de notas y asistencia (gradeHelpers.ts / attendanceHelpers.ts) */
+    --grade-empty-bg: #ffffff;
+    --grade-empty-text: #9ca3af;
+    --grade-fail-bg: #ffcdd2;
+    --grade-fail-text: #c62828;
+    --grade-warn-bg: #fff9c4;
+    --grade-warn-text: #e65100;
+    --grade-pass-bg: #c8e6c9;
+    --grade-pass-text: #2e7d32;
+    --att-justified-bg: #dcedc8;
+    --att-justified-text: #33691e;
+    --att-early-bg: #e1bee7;
+    --att-early-text: #6a1b9a;
   }
 
   .dark {
@@ -34,6 +48,19 @@
     --ring: 212 76% 55%;
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
+
+    --grade-empty-bg: hsl(222 22% 11%);
+    --grade-empty-text: #6b7280;
+    --grade-fail-bg: #4a1d22;
+    --grade-fail-text: #fca5a5;
+    --grade-warn-bg: #45390f;
+    --grade-warn-text: #fcd34d;
+    --grade-pass-bg: #173a24;
+    --grade-pass-text: #86efac;
+    --att-justified-bg: #26361a;
+    --att-justified-text: #bef264;
+    --att-early-bg: #3b2244;
+    --att-early-text: #e9d5ff;
   }
 
   * {

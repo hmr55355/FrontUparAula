@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { gradeSectionsApi } from '@/services/api/gradeSections'
 import { homeworksApi } from '@/services/api/homeworks'
+import { localDateString } from '@/utils/dateHelpers'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateString()
 }
 
 export function NewHomeworkDialog({

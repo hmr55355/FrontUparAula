@@ -11,6 +11,7 @@ import { groupsApi } from '@/services/api/groups'
 import { behaviorApi } from '@/services/api/behavior'
 import { BEHAVIOR_CATEGORY_LABELS, BEHAVIOR_TYPE_LABELS } from '@/types/behavior'
 import type { BehaviorAnnotation, BehaviorCategory, BehaviorType } from '@/types/behavior'
+import { localDateString } from '@/utils/dateHelpers'
 
 export function NewAnnotationDialog({
   open,
@@ -59,7 +60,7 @@ export function NewAnnotationDialog({
       const annotation = await behaviorApi.create({
         student_id: studentId,
         group_id: groupId,
-        date: new Date().toISOString().slice(0, 10),
+        date: localDateString(),
         type,
         category,
         title,

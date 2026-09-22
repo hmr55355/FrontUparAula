@@ -10,9 +10,10 @@ import { VoiceRecorderButton } from '@/components/VoiceRecorderButton'
 import { classPlansApi } from '@/services/api/classPlans'
 import { CLASS_PLAN_STATUS_LABELS } from '@/types/classPlans'
 import type { ClassPlan, ClassPlanStatus } from '@/types/classPlans'
+import { localDateString } from '@/utils/dateHelpers'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateString()
 }
 
 export function ClassPlanDialog({

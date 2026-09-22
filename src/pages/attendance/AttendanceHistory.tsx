@@ -12,11 +12,12 @@ import { groupSubjectsApi } from '@/services/api/groupSubjects'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
 import { useActivePeriod } from '@/hooks/useActivePeriod'
 import { ATTENDANCE_LABELS } from '@/types/attendance'
+import { localDateString } from '@/utils/dateHelpers'
 
 function daysAgo(n: number) {
   const d = new Date()
   d.setDate(d.getDate() - n)
-  return d.toISOString().slice(0, 10)
+  return localDateString(d)
 }
 
 export function AttendanceHistory() {

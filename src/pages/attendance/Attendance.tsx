@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { CalendarCheck, History } from 'lucide-react'
+import { CalendarCheck, History, Table2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,9 +12,11 @@ import { getAttendanceColor } from '@/utils/attendanceHelpers'
 import { ATTENDANCE_CYCLE, ATTENDANCE_LABELS } from '@/types/attendance'
 import type { AttendanceStatus } from '@/types/attendance'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
+import { localDateString } from '@/utils/dateHelpers'
+import { AttendancePeriodNote } from '@/pages/attendance/AttendancePeriodNote'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateString()
 }
 
 export function Attendance() {
@@ -82,6 +84,9 @@ export function Attendance() {
       const result = await attendanceApi.bulkSave(groupSubjectId, date, records)
       toast.success(`Asistencia guardada (${result.count} estudiantes).`)
       queryClient.invalidateQueries({ queryKey: ['attendance', 'day', groupSubjectId, date] })
+      // La asistencia recalcula en el backend las columnas "desde asistencia" y las
+      // definitivas: sin esto, la planilla mostraría la nota vieja desde la caché.
+      queryClient.invalidateQueries({ queryKey: ['grades-sheet', groupSubjectId] })
     } catch {
       toast.error('No pudimos guardar la asistencia.')
     } finally {
@@ -110,8 +115,13 @@ export function Attendance() {
             {activeCourse?.groupName} — {activeCourse?.subjectName}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-auto" />
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/attendance/sheet">
+              <Table2 className="h-4 w-4" /> Planilla
+            </Link>
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link to="/attendance/history">
               <History className="h-4 w-4" /> Historial
@@ -119,6 +129,8 @@ export function Attendance() {
           </Button>
         </div>
       </div>
+
+      <AttendancePeriodNote groupSubjectId={groupSubjectId} date={date} />
 
       {isLoading && <p className="text-sm text-muted-foreground">Cargando lista...</p>}
 

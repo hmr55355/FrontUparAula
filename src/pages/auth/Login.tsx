@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
+import axios from 'axios'
 
 import { AuthLayout } from '@/pages/auth/AuthLayout'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,8 @@ import { authApi } from '@/services/api/auth'
 import { useAuthStore } from '@/store/authStore'
 
 const schema = z.object({
-  email: z.string().email('Correo inválido'),
+  // Correo (docentes) o usuario (monitores de curso).
+  email: z.string().trim().min(1, 'Escribe tu correo o usuario'),
   password: z.string().min(1, 'La contraseña es requerida'),
 })
 
@@ -35,9 +37,12 @@ export function Login() {
     try {
       const { user, token } = await authApi.login(values)
       setSession(user, token)
-      navigate('/dashboard')
-    } catch {
-      toast.error('Las credenciales no coinciden con nuestros registros.')
+      navigate(user.account_type === 'monitor' ? '/monitor' : '/dashboard')
+    } catch (error) {
+      const message =
+        (axios.isAxiosError(error) && error.response?.data?.errors?.email?.[0]) ||
+        'Las credenciales no coinciden con nuestros registros.'
+      toast.error(message)
     } finally {
       setSubmitting(false)
     }
@@ -47,8 +52,8 @@ export function Login() {
     <AuthLayout title="Inicia sesión" subtitle="Ingresa a tu cuenta de UparAula">
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
         <div className="space-y-2">
-          <Label htmlFor="email">Correo electrónico</Label>
-          <Input id="email" type="email" inputMode="email" {...register('email')} />
+          <Label htmlFor="email">Correo o usuario</Label>
+          <Input id="email" type="text" autoCapitalize="none" autoComplete="username" {...register('email')} />
           {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
         </div>
         <div className="space-y-2">

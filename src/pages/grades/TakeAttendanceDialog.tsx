@@ -10,22 +10,21 @@ import { attendanceApi } from '@/services/api/attendance'
 import { getAttendanceColor } from '@/utils/attendanceHelpers'
 import { ATTENDANCE_CYCLE, ATTENDANCE_LABELS } from '@/types/attendance'
 import type { AttendanceStatus } from '@/types/attendance'
-import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
+import { localDateString } from '@/utils/dateHelpers'
+import { AttendancePeriodNote } from '@/pages/attendance/AttendancePeriodNote'
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  return localDateString()
 }
 
 export function TakeAttendanceDialog({
   open,
   onOpenChange,
   groupSubjectId,
-  periodId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupSubjectId: number
-  periodId: number
 }) {
   const queryClient = useQueryClient()
   const [date, setDate] = useState(today())
@@ -88,7 +87,8 @@ export function TakeAttendanceDialog({
       const result = await attendanceApi.bulkSave(groupSubjectId, date, records)
       toast.success(`Asistencia guardada (${result.count} estudiantes).`)
       queryClient.invalidateQueries({ queryKey: ['attendance', 'day', groupSubjectId, date] })
-      queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+      // Prefijo del curso: la fecha puede caer en otro período distinto al que se está viendo.
+      queryClient.invalidateQueries({ queryKey: ['grades-sheet', groupSubjectId] })
       onOpenChange(false)
     } catch {
       toast.error('No pudimos guardar la asistencia.')
@@ -110,6 +110,8 @@ export function TakeAttendanceDialog({
             Marcar todos presentes
           </Button>
         </div>
+
+        <AttendancePeriodNote groupSubjectId={groupSubjectId} date={date} />
 
         {isLoading && <p className="text-sm text-muted-foreground">Cargando lista...</p>}
 

@@ -38,17 +38,19 @@ export function Configuracion() {
               </Button>
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Mi horario de clases</CardTitle>
-              <CardDescription>Acceso directo al módulo de horario</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button variant="outline" asChild>
-                <Link to="/schedule">Ver mi horario →</Link>
-              </Button>
-            </CardContent>
-          </Card>
+          {!isAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Mi horario de clases</CardTitle>
+                <CardDescription>Acceso directo al módulo de horario</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button variant="outline" asChild>
+                  <Link to="/schedule">Ver mi horario →</Link>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {isAdmin && (

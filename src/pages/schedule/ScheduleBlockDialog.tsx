@@ -11,17 +11,24 @@ import { groupSubjectsApi } from '@/services/api/groupSubjects'
 import { scheduleApi, type ScheduleBlockPayload } from '@/services/api/schedule'
 import { DAY_LABELS } from '@/types/schedule'
 import type { ClassScheduleBlock } from '@/types/schedule'
+import type { Shift } from '@/types'
 
 export function ScheduleBlockDialog({
   open,
   onOpenChange,
   block,
   defaultDay,
+  defaultStart,
+  defaultEnd,
+  shifts = [],
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   block?: ClassScheduleBlock | null
   defaultDay?: number
+  defaultStart?: string
+  defaultEnd?: string
+  shifts?: Shift[]
 }) {
   const queryClient = useQueryClient()
   const { data: courses } = useQuery({ queryKey: ['group-subjects', 'mine'], queryFn: groupSubjectsApi.myCourses })
@@ -38,12 +45,33 @@ export function ScheduleBlockDialog({
     if (open) {
       setGroupSubjectId(block?.group_subject_id ?? '')
       setDayOfWeek(block?.day_of_week ?? defaultDay ?? 1)
-      setStartTime(block?.start_time?.slice(0, 5) ?? '07:00')
-      setEndTime(block?.end_time?.slice(0, 5) ?? '07:50')
+      setStartTime(block?.start_time?.slice(0, 5) ?? defaultStart ?? '07:00')
+      setEndTime(block?.end_time?.slice(0, 5) ?? defaultEnd ?? '07:50')
       setClassroom(block?.classroom ?? '')
       setBlockLabel(block?.block_label ?? '')
     }
-  }, [open, block, defaultDay])
+  }, [open, block, defaultDay, defaultStart, defaultEnd])
+
+  // Bloques de clase de la jornada del grupo elegido: permiten escoger "del
+  // bloque X al bloque Y" en vez de digitar horas (se pueden seguir ajustando a mano).
+  const selectedCourse = courses?.find((c) => c.id === groupSubjectId)
+  const classBlocks = (shifts.find((s) => s.id === selectedCourse?.group?.shift_id)?.class_blocks ?? []).filter(
+    (b) => b.type === 'clase'
+  )
+  const startBlockIndex = classBlocks.findIndex((b) => b.start_time.slice(0, 5) === startTime)
+  const endBlockIndex = classBlocks.findIndex((b) => b.end_time.slice(0, 5) === endTime)
+
+  const remove = async () => {
+    if (!block || !window.confirm('¿Eliminar esta clase del horario?')) return
+    try {
+      await scheduleApi.remove(block.id)
+      toast.success('Clase eliminada del horario.')
+      queryClient.invalidateQueries({ queryKey: ['schedule'] })
+      onOpenChange(false)
+    } catch {
+      toast.error('No pudimos eliminarla.')
+    }
+  }
 
   const save = async (confirm = false) => {
     if (!groupSubjectId) {
@@ -128,6 +156,45 @@ export function ScheduleBlockDialog({
             </select>
           </div>
 
+          {classBlocks.length > 0 && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Desde el bloque</Label>
+                <select
+                  className="h-12 w-full rounded-md border border-input bg-transparent px-3"
+                  value={startBlockIndex}
+                  onChange={(e) => {
+                    const index = Number(e.target.value)
+                    setStartTime(classBlocks[index].start_time.slice(0, 5))
+                    if (endBlockIndex < index) setEndTime(classBlocks[index].end_time.slice(0, 5))
+                  }}
+                >
+                  {startBlockIndex === -1 && <option value={-1}>Hora personalizada</option>}
+                  {classBlocks.map((b, i) => (
+                    <option key={i} value={i}>
+                      {b.label} ({b.start_time.slice(0, 5)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label>Hasta el bloque</Label>
+                <select
+                  className="h-12 w-full rounded-md border border-input bg-transparent px-3"
+                  value={endBlockIndex}
+                  onChange={(e) => setEndTime(classBlocks[Number(e.target.value)].end_time.slice(0, 5))}
+                >
+                  {endBlockIndex === -1 && <option value={-1}>Hora personalizada</option>}
+                  {classBlocks.map((b, i) => (
+                    <option key={i} value={i} disabled={startBlockIndex !== -1 && i < startBlockIndex}>
+                      {b.label} ({b.end_time.slice(0, 5)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Hora inicio</Label>
@@ -150,7 +217,14 @@ export function ScheduleBlockDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {block ? (
+            <Button variant="ghost" className="text-destructive" onClick={remove}>
+              Eliminar
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button onClick={() => save(false)} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar'}
           </Button>

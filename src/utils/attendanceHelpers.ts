@@ -8,20 +8,21 @@ export interface AttendanceColorResult {
 /**
  * Centralized color-coding for attendance status — mirrors the pattern of
  * getGradeColor() in gradeHelpers.ts. Never hardcode these colors inline.
+ * Variables CSS definidas en index.css para claro y oscuro.
  */
 export function getAttendanceColor(status: AttendanceStatus | null): AttendanceColorResult {
   switch (status) {
     case 'presente':
-      return { background: '#C8E6C9', text: '#2E7D32' }
+      return { background: 'var(--grade-pass-bg)', text: 'var(--grade-pass-text)' }
     case 'ausente_injustificado':
-      return { background: '#FFCDD2', text: '#C62828' }
+      return { background: 'var(--grade-fail-bg)', text: 'var(--grade-fail-text)' }
     case 'tarde':
-      return { background: '#FFF9C4', text: '#F57C00' }
+      return { background: 'var(--grade-warn-bg)', text: 'var(--grade-warn-text)' }
     case 'ausente_justificado':
-      return { background: '#DCEDC8', text: '#33691E' }
+      return { background: 'var(--att-justified-bg)', text: 'var(--att-justified-text)' }
     case 'retirado_temprano':
-      return { background: '#E1BEE7', text: '#6A1B9A' }
+      return { background: 'var(--att-early-bg)', text: 'var(--att-early-text)' }
     default:
-      return { background: '#FFFFFF', text: '#9CA3AF' }
+      return { background: 'var(--grade-empty-bg)', text: 'var(--grade-empty-text)' }
   }
 }

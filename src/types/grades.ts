@@ -1,4 +1,4 @@
-export type GradeColumnType = 'manual' | 'from_attendance' | 'section_average' | 'custom_formula'
+export type GradeColumnType = 'manual' | 'from_attendance' | 'section_average' | 'custom_formula' | 'from_participation'
 export type FinalCalculation = 'weighted_avg' | 'simple_avg' | 'manual'
 
 export interface GradeColumn {

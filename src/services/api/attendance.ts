@@ -1,5 +1,11 @@
 import { api } from '@/services/api/client'
-import type { AttendanceDayResponse, AttendanceRecord, AttendanceStatsRow, AttendanceStatus } from '@/types/attendance'
+import type {
+  AttendanceDayResponse,
+  AttendanceRecord,
+  AttendanceSheetResponse,
+  AttendanceStatsRow,
+  AttendanceStatus,
+} from '@/types/attendance'
 
 export interface AttendanceBulkRecord {
   student_id: number
@@ -23,6 +29,11 @@ export const attendanceApi = {
         date,
         records,
       })
+      .then((r) => r.data),
+
+  sheet: (groupSubjectId: number, periodId: number) =>
+    api
+      .get<AttendanceSheetResponse>('/attendance/sheet', { params: { groupSubjectId, periodId } })
       .then((r) => r.data),
 
   stats: (groupSubjectId: number, periodId: number) =>
