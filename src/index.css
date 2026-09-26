@@ -28,8 +28,7 @@
     --grade-warn-text: #e65100;
     --grade-pass-bg: #c8e6c9;
     --grade-pass-text: #2e7d32;
-    --grade-convention-bg: #e3f2fd;
-    --grade-convention-text: #1565c0;
+    --grade-level-text-mix: #000000;
     --att-justified-bg: #dcedc8;
     --att-justified-text: #33691e;
     --att-early-bg: #e1bee7;
@@ -59,8 +58,7 @@
     --grade-warn-text: #fcd34d;
     --grade-pass-bg: #173a24;
     --grade-pass-text: #86efac;
-    --grade-convention-bg: #172a45;
-    --grade-convention-text: #93c5fd;
+    --grade-level-text-mix: #ffffff;
     --att-justified-bg: #26361a;
     --att-justified-text: #bef264;
     --att-early-bg: #3b2244;

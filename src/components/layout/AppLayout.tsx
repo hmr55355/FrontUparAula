@@ -14,6 +14,7 @@ import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import { useActiveShift } from '@/hooks/useActiveShift'
 import { cn } from '@/lib/utils'
+import { setGradeScale } from '@/utils/gradeHelpers'
 import { navItemsFor, type NavItem } from '@/config/navItems'
 import type { GroupSubject } from '@/types'
 
@@ -25,6 +26,9 @@ export function AppLayout({ children }: { children: ReactNode }) {
   const { isDark, toggle } = useThemeStore()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { data: institution } = useCurrentInstitution()
+  // En el render (no en un efecto): las páginas hijas se pintan después en esta
+  // misma pasada y ya leen la escala al colorear notas.
+  setGradeScale(institution?.performance_levels)
   const effectiveRole = useEffectiveRole()
   const isRealAdmin = institution?.my_role === 'admin'
   const visibleNavItems = navItemsFor(effectiveRole)

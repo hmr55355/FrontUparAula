@@ -1,6 +1,46 @@
+import type { PerformanceLevel } from '@/types'
+
 export interface GradeColorResult {
   background: string
   text: string
+}
+
+/**
+ * Escala de valoración de la institución activa. La fija AppLayout durante su
+ * render (antes de pintar las páginas) a partir de `institutions/current`; así no
+ * hay que pasarla a cada pantalla que colorea una nota.
+ */
+let currentScale: PerformanceLevel[] = []
+
+export function setGradeScale(levels: PerformanceLevel[] | undefined) {
+  currentScale = levels ?? []
+}
+
+export function getGradeScale(): PerformanceLevel[] {
+  return currentScale
+}
+
+/** Nivel de la escala al que pertenece una nota (redondeada a un decimal, como se muestra). */
+export function performanceLevelFor(
+  score: number | null | undefined,
+  levels: PerformanceLevel[] = currentScale
+): PerformanceLevel | undefined {
+  if (score === null || score === undefined) return undefined
+  const rounded = Math.round(score * 10) / 10
+  return levels.find((l) => rounded >= Number(l.min_score) && rounded <= Number(l.max_score))
+}
+
+/**
+ * Fondo y texto a partir del color que la institución eligió para un nivel. Se
+ * mezclan con variables del tema para que se lean en claro y en oscuro: fondo =
+ * el color suave sobre la tarjeta; texto = el color oscurecido (claro) o aclarado
+ * (oscuro).
+ */
+export function levelColors(color: string): GradeColorResult {
+  return {
+    background: `color-mix(in srgb, ${color} 22%, hsl(var(--card)))`,
+    text: `color-mix(in srgb, ${color} 72%, var(--grade-level-text-mix))`,
+  }
 }
 
 /**
@@ -15,6 +55,12 @@ export function getGradeColor(score: number | null | undefined, minPassing: numb
   if (score === null || score === undefined) {
     return { background: 'var(--grade-empty-bg)', text: 'var(--grade-empty-text)' }
   }
+  // Con escala institucional configurada, el color es el de su nivel; si no, el
+  // semáforo por nota mínima de siempre.
+  const level = performanceLevelFor(score)
+  if (level) {
+    return levelColors(level.color)
+  }
   if (score < minPassing) {
     return { background: 'var(--grade-fail-bg)', text: 'var(--grade-fail-text)' }
   }
@@ -24,10 +70,14 @@ export function getGradeColor(score: number | null | undefined, minPassing: numb
   return { background: 'var(--grade-pass-bg)', text: 'var(--grade-pass-text)' }
 }
 
-/** Color de una celda con convención: si la convención vale nota, el semáforo; si no, un tono neutro propio. */
+/**
+ * Color de una celda con convención. Si la convención vale nota, el del nivel de
+ * esa nota. Si no tiene nota (no cuenta en el promedio), se ve como una celda
+ * vacía, pero con el texto normal para que la abreviatura se lea bien.
+ */
 export function getConventionColor(value: number | null, minPassing: number): GradeColorResult {
   if (value === null) {
-    return { background: 'var(--grade-convention-bg)', text: 'var(--grade-convention-text)' }
+    return { background: 'var(--grade-empty-bg)', text: 'hsl(var(--foreground))' }
   }
   return getGradeColor(value, minPassing)
 }

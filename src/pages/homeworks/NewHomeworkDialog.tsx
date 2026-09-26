@@ -12,6 +12,7 @@ import { gradeSectionsApi } from '@/services/api/gradeSections'
 import { homeworksApi } from '@/services/api/homeworks'
 import { localDateString } from '@/utils/dateHelpers'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import type { Homework } from '@/types/homeworks'
 
 function today() {
@@ -51,10 +52,14 @@ export function NewHomeworkDialog({
   const [notes, setNotes] = useState(homework?.notes ?? '')
   const [assignedDate, setAssignedDate] = useState(homework?.assigned_date.slice(0, 10) ?? today())
   const [dueDate, setDueDate] = useState(homework?.due_date.slice(0, 10) ?? '')
-  const [maxScore, setMaxScore] = useState(homework ? String(Number(homework.max_score)) : '10')
+  // Por defecto, la nota máxima de la escala de la institución (5.0 o 10.0).
+  const { data: institution } = useCurrentInstitution()
+  const defaultMax = institution?.grading_scale === '1_to_5' ? '5' : '10'
+  const [maxScore, setMaxScore] = useState(homework ? String(Number(homework.max_score)) : defaultMax)
   const [isGraded, setIsGraded] = useState(false)
   const [gradeSectionId, setGradeSectionId] = useState<number | ''>('')
   const [weight, setWeight] = useState('')
+  const [weightMode, setWeightMode] = useState<'automatic' | 'manual'>('automatic')
   const [saving, setSaving] = useState(false)
 
   const reset = () => {
@@ -62,11 +67,14 @@ export function NewHomeworkDialog({
     setDescription('')
     setAssignedDate(today())
     setDueDate('')
-    setMaxScore('10')
+    setMaxScore(defaultMax)
     setIsGraded(false)
     setGradeSectionId('')
     setWeight('')
+    setWeightMode('automatic')
   }
+
+  const selectedSection = sections?.find((section) => section.id === gradeSectionId)
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['homeworks', groupSubjectId, periodId] })
@@ -140,7 +148,7 @@ export function NewHomeworkDialog({
       }
       return
     }
-    if (isGraded && (!gradeSectionId || !weight)) {
+    if (isGraded && (!gradeSectionId || (weightMode === 'manual' && !weight))) {
       toast.error('Selecciona la sección y el peso de la columna generada.')
       return
     }
@@ -157,7 +165,8 @@ export function NewHomeworkDialog({
         max_score: Number(maxScore),
         is_graded: isGraded,
         grade_section_id: isGraded ? Number(gradeSectionId) : undefined,
-        weight: isGraded ? Number(weight) : undefined,
+        weight: isGraded && weightMode === 'manual' ? Number(weight) : undefined,
+        weight_mode: isGraded ? weightMode : undefined,
         notes: notes || undefined,
       })
       toast.success('Tarea creada.')
@@ -248,8 +257,42 @@ export function NewHomeworkDialog({
                 </select>
               </div>
               <div className="space-y-1">
-                <Label>Peso de la columna (%)</Label>
-                <Input type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} />
+                <Label>Peso de la columna</Label>
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={weightMode === 'automatic' ? 'default' : 'outline'}
+                    onClick={() => setWeightMode('automatic')}
+                  >
+                    Automático
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={weightMode === 'manual' ? 'default' : 'outline'}
+                    onClick={() => setWeightMode('manual')}
+                  >
+                    Manual
+                  </Button>
+                </div>
+                {weightMode === 'automatic' ? (
+                  <p className="text-xs text-muted-foreground">
+                    {selectedSection
+                      ? `Las ${selectedSection.columns.length + 1} columnas de "${selectedSection.name}" quedarán con ${(
+                          Math.floor(1000 / (selectedSection.columns.length + 1)) / 10
+                        ).toFixed(1)} % cada una.`
+                      : 'Todas las columnas de la sección quedarán con el mismo peso.'}
+                  </p>
+                ) : (
+                  <Input
+                    type="number"
+                    step="0.1"
+                    placeholder="%"
+                    value={weight}
+                    onChange={(e) => setWeight(e.target.value)}
+                  />
+                )}
               </div>
             </div>
           )}

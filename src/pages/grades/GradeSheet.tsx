@@ -19,7 +19,8 @@ import { TakeAttendanceDialog } from '@/pages/grades/TakeAttendanceDialog'
 import { CopyPaymentsDialog } from '@/pages/grades/CopyPaymentsDialog'
 import { GradeExcelDialog } from '@/pages/grades/GradeExcelDialog'
 import { ConventionsDialog } from '@/pages/grades/ConventionsDialog'
-import { ConventionsLegend } from '@/pages/grades/conventions'
+import { ConventionsLegend, PerformanceScaleLegend } from '@/pages/grades/conventions'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
 
@@ -34,6 +35,7 @@ export function GradeSheet() {
   const [copiesOpen, setCopiesOpen] = useState(false)
   const [excelOpen, setExcelOpen] = useState(false)
   const [conventionsOpen, setConventionsOpen] = useState(false)
+  const { data: institution } = useCurrentInstitution()
 
   const { data: courses } = useQuery({ queryKey: ['group-subjects', 'mine'], queryFn: groupSubjectsApi.myCourses })
   const course = courses?.find((c) => c.id === gsId)
@@ -155,6 +157,7 @@ export function GradeSheet() {
         </Card>
       ) : (
         <>
+          <PerformanceScaleLegend levels={institution?.performance_levels ?? []} />
           <ConventionsLegend
             conventions={sheet.conventions}
             minPassing={sheet.min_passing_grade}

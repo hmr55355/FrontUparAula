@@ -19,6 +19,7 @@ import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { academicStructureApi } from '@/services/api/academicStructure'
 import { GradeLevelsPanel, gradeLevelsQueryKey } from '@/pages/institution/GradeLevelsPanel'
 import { ShiftsPanel, shiftsQueryKey } from '@/pages/institution/ShiftsPanel'
+import { PerformanceScalePanel } from '@/pages/institution/PerformanceScalePanel'
 import type { GradeLevel } from '@/types'
 
 export function InstitutionSettings() {
@@ -43,6 +44,7 @@ export function InstitutionSettings() {
         {/* h-auto + flex-wrap: con 6 pestañas la segunda fila no debe montarse sobre el contenido */}
         <TabsList className="h-auto flex-wrap gap-1">
           <TabsTrigger value="teachers">Docentes</TabsTrigger>
+          <TabsTrigger value="scale">Escala de valoración</TabsTrigger>
           <TabsTrigger value="grade-levels">Grados</TabsTrigger>
           <TabsTrigger value="shifts">Jornadas</TabsTrigger>
           <TabsTrigger value="groups">Grupos</TabsTrigger>
@@ -51,6 +53,9 @@ export function InstitutionSettings() {
         </TabsList>
         <TabsContent value="teachers">
           <TeachersPanel institutionId={institution.id} />
+        </TabsContent>
+        <TabsContent value="scale">
+          <PerformanceScalePanel institution={institution} />
         </TabsContent>
         <TabsContent value="grade-levels">
           <GradeLevelsPanel institutionId={institution.id} />

@@ -2,7 +2,9 @@ import { useLayoutEffect, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { Settings2 } from 'lucide-react'
 
-import { getConventionColor } from '@/utils/gradeHelpers'
+import { getConventionColor, levelColors } from '@/utils/gradeHelpers'
+import { NATIONAL_LEVEL_LABELS } from '@/types'
+import type { PerformanceLevel } from '@/types'
 import { conventionTitle, conventionValue } from '@/pages/grades/conventionHelpers'
 import type { GradeConvention } from '@/types/grades'
 
@@ -131,6 +133,29 @@ export function ConventionsLegend({
           <Settings2 className="h-3.5 w-3.5" /> {conventions.length === 0 ? 'Configurar' : 'Editar'}
         </button>
       )}
+    </div>
+  )
+}
+
+/** Escala de valoración de la institución sobre la planilla: qué color es cada nivel. */
+export function PerformanceScaleLegend({ levels }: { levels: PerformanceLevel[] }) {
+  if (levels.length === 0) return null
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-1 text-xs">
+      <span className="font-medium text-muted-foreground">Escala:</span>
+      {levels.map((level) => {
+        const { background, text } = levelColors(level.color)
+        return (
+          <span
+            key={level.id ?? level.name}
+            className="rounded px-2 py-0.5 font-medium"
+            style={{ backgroundColor: background, color: text }}
+            title={NATIONAL_LEVEL_LABELS[level.national_level]}
+          >
+            {level.name} {Number(level.min_score).toFixed(1)}–{Number(level.max_score).toFixed(1)}
+          </span>
+        )
+      })}
     </div>
   )
 }

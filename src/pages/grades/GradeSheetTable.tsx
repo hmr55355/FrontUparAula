@@ -1,7 +1,7 @@
 import { Fragment, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 
-import { getGradeColor } from '@/utils/gradeHelpers'
+import { getGradeColor, performanceLevelFor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
@@ -246,7 +246,9 @@ function ReadOnlyCell({
           onClick={onClick}
           className="block w-full px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
           style={{ backgroundColor: background, color: text }}
-          title={adjusted ? 'Ajustada manualmente — clic para modificar' : 'Clic para ajustar manualmente'}
+          title={[performanceLevelFor(numeric)?.name, adjusted ? 'Ajustada manualmente — clic para modificar' : 'Clic para ajustar manualmente']
+            .filter(Boolean)
+            .join(' · ')}
         >
           {content}
           {adjusted && <span className="ml-1 text-xs">✎</span>}
@@ -313,7 +315,7 @@ function EditableGradeCell({
         type="button"
         className="block w-full px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
         style={{ backgroundColor: background, color: text }}
-        title={convention ? conventionTitle(convention) : undefined}
+        title={convention ? conventionTitle(convention) : performanceLevelFor(numeric)?.name}
         onClick={(e) => {
           lockedWidthRef.current = e.currentTarget.offsetWidth
           setDraft(content === '—' ? '' : content)

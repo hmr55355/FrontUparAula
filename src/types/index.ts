@@ -32,8 +32,32 @@ export interface Institution {
   logo: string | null
   grading_scale: '1_to_10' | '1_to_5'
   min_passing_grade: string
+  /** Escala de valoración institucional (SIEE), de la nota más baja a la más alta. */
+  performance_levels?: PerformanceLevel[]
   my_role?: InstitutionRole
   created_at: string
+}
+
+/** Escala nacional (Decreto 1290 de 2009, art. 5): toda escala institucional debe expresar su equivalencia. */
+export type NationalLevel = 'bajo' | 'basico' | 'alto' | 'superior'
+
+export const NATIONAL_LEVELS: NationalLevel[] = ['bajo', 'basico', 'alto', 'superior']
+
+export const NATIONAL_LEVEL_LABELS: Record<NationalLevel, string> = {
+  bajo: 'Desempeño Bajo',
+  basico: 'Desempeño Básico',
+  alto: 'Desempeño Alto',
+  superior: 'Desempeño Superior',
+}
+
+/** Nivel de la escala institucional: rango de notas, equivalencia nacional y color en la planilla. */
+export interface PerformanceLevel {
+  id?: number
+  name: string
+  national_level: NationalLevel
+  min_score: string | number
+  max_score: string | number
+  color: string
 }
 
 export interface AcademicYear {

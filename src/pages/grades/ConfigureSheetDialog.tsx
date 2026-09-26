@@ -19,6 +19,7 @@ import { gradeTemplatesApi } from '@/services/api/gradeTemplates'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import type { GradeColumnDraft, GradeSectionDraft } from '@/types/grades'
 import type { GradeSheetResponse } from '@/types/grades'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 
 const COLUMN_TYPE_LABELS: Record<GradeColumnDraft['column_type'], string> = {
   manual: 'Manual',
@@ -58,6 +59,9 @@ export function ConfigureSheetDialog({
 }) {
   const queryClient = useQueryClient()
   const [sections, setSections] = useState<GradeSectionDraft[]>(() => toDraft(sheet))
+  // Nota máxima por defecto de las columnas nuevas: la de la escala de la institución.
+  const { data: currentInstitution } = useCurrentInstitution()
+  const scaleMax = currentInstitution?.grading_scale === '1_to_5' ? 5 : 10
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [saving, setSaving] = useState(false)
   const [weightModes, setWeightModes] = useState<Record<number, WeightMode>>({})
@@ -435,7 +439,7 @@ export function ConfigureSheetDialog({
                             min={1}
                             max={10}
                             className="h-10"
-                            value={column.max_score ?? 10}
+                            value={column.max_score ?? scaleMax}
                             onChange={(e) => updateColumn(columnIndex, { max_score: Number(e.target.value) })}
                           />
                         </div>

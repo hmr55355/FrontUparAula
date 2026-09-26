@@ -12,6 +12,8 @@ export interface HomeworkPayload {
   is_graded?: boolean
   grade_section_id?: number
   weight?: number
+  /** automatic: la columna nueva y las de la sección quedan con el mismo peso. */
+  weight_mode?: 'manual' | 'automatic'
   notes?: string
 }
 
