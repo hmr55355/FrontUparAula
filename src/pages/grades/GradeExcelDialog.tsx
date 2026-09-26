@@ -81,7 +81,8 @@ export function GradeExcelDialog({
             <p className="text-sm font-medium">1. Descarga la plantilla</p>
             <p className="text-sm text-muted-foreground">
               Trae tus estudiantes y una columna por cada actividad de este período. Llena solo las notas (de 1.0 a la
-              nota máxima); no cambies los nombres ni el orden de las filas.
+              nota máxima) o la abreviatura de una de tus convenciones (NP, ✓…, listadas en la hoja "Convenciones");
+              no cambies los nombres ni el orden de las filas.
             </p>
             <Button variant="outline" size="sm" className="w-fit" onClick={download} disabled={downloading}>
               <Download className="h-4 w-4" /> {downloading ? 'Generando...' : 'Descargar plantilla'}

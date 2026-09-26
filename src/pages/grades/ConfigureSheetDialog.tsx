@@ -301,6 +301,29 @@ export function ConfigureSheetDialog({
                   </div>
                 </div>
 
+                <div className="flex flex-wrap items-end gap-3">
+                  <label className="flex h-10 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selected.has_section_final}
+                      onChange={(e) => updateSection(selectedIndex, { has_section_final: e.target.checked })}
+                    />
+                    Mostrar la definitiva de la sección
+                  </label>
+                  {selected.has_section_final && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nombre de esa columna</Label>
+                      <Input
+                        className="h-10 w-32"
+                        maxLength={20}
+                        placeholder="Def"
+                        value={selected.section_final_label ?? ''}
+                        onChange={(e) => updateSection(selectedIndex, { section_final_label: e.target.value })}
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <Button variant="ghost" size="sm" className="w-fit text-destructive" onClick={() => removeSection(selectedIndex)}>
                   <Trash2 className="h-4 w-4" /> Eliminar sección
                 </Button>
@@ -403,6 +426,38 @@ export function ConfigureSheetDialog({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
+                      <div className="col-span-5 grid grid-cols-[90px_150px_1fr] gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-xs">Nota máx.</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            min={1}
+                            max={10}
+                            className="h-10"
+                            value={column.max_score ?? 10}
+                            onChange={(e) => updateColumn(columnIndex, { max_score: Number(e.target.value) })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Fecha (opcional)</Label>
+                          <Input
+                            type="date"
+                            className="h-10"
+                            value={column.date ?? ''}
+                            onChange={(e) => updateColumn(columnIndex, { date: e.target.value || null })}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs">Descripción (opcional)</Label>
+                          <Input
+                            className="h-10"
+                            placeholder="Qué se evalúa en esta actividad"
+                            value={column.description ?? ''}
+                            onChange={(e) => updateColumn(columnIndex, { description: e.target.value || null })}
+                          />
+                        </div>
+                      </div>
                       {column.column_type === 'from_attendance' && (
                         <div className="col-span-5 grid grid-cols-3 gap-2 border-t pt-2">
                           <div className="space-y-1">
@@ -493,6 +548,7 @@ function sectionToDraft(section: GradeSheetResponse['sections'][number]): GradeS
     weight: Number(section.weight),
     color: section.color,
     has_section_final: section.has_section_final,
+    section_final_label: section.section_final_label,
     final_calculation: section.final_calculation,
     columns: section.columns.map((c) => ({
       id: c.id,
@@ -501,6 +557,8 @@ function sectionToDraft(section: GradeSheetResponse['sections'][number]): GradeS
       column_type: c.column_type,
       weight: Number(c.weight),
       max_score: Number(c.max_score),
+      description: c.description,
+      date: c.date ? c.date.slice(0, 10) : null,
       attendance_base_score: Number(c.attendance_base_score),
       absence_penalty: Number(c.absence_penalty),
       justified_absence_penalty: Number(c.justified_absence_penalty),

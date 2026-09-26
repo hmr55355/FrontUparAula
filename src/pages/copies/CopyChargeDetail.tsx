@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { copyChargesApi } from '@/services/api/copyCharges'
 import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import type { CopyChargeStudent } from '@/types/copies'
 import { PaymentDialog } from '@/pages/copies/PaymentDialog'
+import { NewChargeDialog } from '@/pages/copies/NewChargeDialog'
 
 export function CopyChargeDetail() {
   const { chargeId } = useParams<{ chargeId: string }>()
@@ -18,6 +19,8 @@ export function CopyChargeDetail() {
   const queryClient = useQueryClient()
   const [selectedStudent, setSelectedStudent] = useState<CopyChargeStudent | null>(null)
   const [markingAll, setMarkingAll] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const navigate = useNavigate()
 
   const { data, isLoading } = useQuery({
     queryKey: ['copy-charge-payments', id],
@@ -57,12 +60,28 @@ export function CopyChargeDetail() {
         <Link to="/copies" className="flex items-center gap-1 text-sm text-primary hover:underline">
           <ArrowLeft className="h-4 w-4" /> Volver a copias
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">{data.charge.description}</h1>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold">{data.charge.description}</h1>
+          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-4 w-4" /> Editar
+          </Button>
+        </div>
         <p className="text-sm text-muted-foreground">
           {data.charge.quantity} copias × ${Number(data.charge.unit_price).toLocaleString('es-CO')} = $
           {Number(data.charge.total_amount).toLocaleString('es-CO')} — {data.charge.charge_date.slice(0, 10)}
         </p>
+        {data.charge.notes && <p className="mt-1 text-sm">{data.charge.notes}</p>}
       </div>
+
+      {editOpen && (
+        <NewChargeDialog
+          open
+          onOpenChange={setEditOpen}
+          groupId={data.charge.group_id}
+          charge={data.charge}
+          onDeleted={() => navigate('/copies')}
+        />
+      )}
 
       <Button size="sm" variant="outline" className="w-fit" onClick={markAllPaid} disabled={markingAll}>
         {markingAll ? 'Actualizando...' : 'Marcar todos como pagados'}

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Plus, UserCircle } from 'lucide-react'
+import { Pencil, Plus, UserCircle } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,9 @@ import { CITATION_STATUS_BADGE, CITATION_STATUS_LABELS } from '@/types/citations
 import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import { NewObservationDialog } from '@/pages/student/NewObservationDialog'
 import { NewCitationDialog } from '@/pages/citations/NewCitationDialog'
+import { ParentDialog } from '@/pages/student/ParentDialog'
+import { RELATIONSHIP_LABELS } from '@/types/parents'
+import type { ParentGuardian } from '@/types/parents'
 
 export function StudentProfile() {
   const { id } = useParams<{ id: string }>()
@@ -27,6 +30,8 @@ export function StudentProfile() {
 
   const [observationDialogOpen, setObservationDialogOpen] = useState(false)
   const [citationDialogOpen, setCitationDialogOpen] = useState(false)
+  // null = cerrado, 'new' = agregar, objeto = editar ese acudiente.
+  const [parentDialog, setParentDialog] = useState<ParentGuardian | 'new' | null>(null)
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['student-profile', studentId],
@@ -155,21 +160,54 @@ export function StudentProfile() {
         </TabsContent>
 
         <TabsContent value="parents" className="flex flex-col gap-3">
-          <Button size="sm" className="w-fit" onClick={() => setCitationDialogOpen(true)} disabled={!course}>
-            <Plus className="h-4 w-4" /> Nueva citación
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" className="w-fit" onClick={() => setCitationDialogOpen(true)} disabled={!course}>
+              <Plus className="h-4 w-4" /> Nueva citación
+            </Button>
+            <Button size="sm" variant="outline" className="w-fit" onClick={() => setParentDialog('new')}>
+              <Plus className="h-4 w-4" /> Agregar acudiente
+            </Button>
+          </div>
 
           {profile.parents.length === 0 && <EmptyState text="Sin acudientes registrados." />}
           {profile.parents.map((p) => (
             <Card key={p.id}>
-              <CardContent className="flex items-center justify-between py-3">
-                <span className="font-medium">
-                  {p.first_name} {p.last_name}
-                </span>
-                <span className="text-sm text-muted-foreground">{p.phone}</span>
+              <CardContent className="flex items-center justify-between gap-2 py-3">
+                <div className="flex flex-col">
+                  <span className="font-medium">
+                    {p.first_name} {p.last_name}
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      {RELATIONSHIP_LABELS[p.relationship] ?? p.relationship}
+                    </span>
+                  </span>
+                  {p.email && <span className="text-xs text-muted-foreground">{p.email}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-right text-sm text-muted-foreground">
+                    {p.phone}
+                    {p.phone_alt && <span className="block text-xs">{p.phone_alt}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    aria-label="Editar acudiente"
+                    onClick={() => setParentDialog(p)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                </div>
               </CardContent>
             </Card>
           ))}
+          {parentDialog && (
+            <ParentDialog
+              key={parentDialog === 'new' ? 'new' : parentDialog.id}
+              open
+              onOpenChange={(open) => !open && setParentDialog(null)}
+              studentId={studentId}
+              parent={parentDialog === 'new' ? undefined : parentDialog}
+            />
+          )}
 
           {profile.citations.length > 0 && (
             <>

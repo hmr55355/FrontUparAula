@@ -29,6 +29,11 @@ export const behaviorApi = {
   create: (payload: BehaviorPayload) =>
     api.post<{ data: BehaviorAnnotation }>('/behavior', payload).then((r) => r.data.data),
 
+  update: (id: number, payload: Partial<Omit<BehaviorPayload, 'student_id' | 'group_id' | 'group_subject_id'>>) =>
+    api.put<{ data: BehaviorAnnotation }>(`/behavior/${id}`, payload).then((r) => r.data.data),
+
+  remove: (id: number) => api.delete(`/behavior/${id}`),
+
   markContacted: (id: number) =>
     api.patch<{ data: BehaviorAnnotation }>(`/behavior/${id}/mark-contacted`).then((r) => r.data.data),
 }

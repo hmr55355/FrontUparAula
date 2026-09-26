@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import axios from 'axios'
+import { Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,33 +11,47 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { gradeSectionsApi } from '@/services/api/gradeSections'
 import { homeworksApi } from '@/services/api/homeworks'
 import { localDateString } from '@/utils/dateHelpers'
+import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
+import type { Homework } from '@/types/homeworks'
 
 function today() {
   return localDateString()
 }
 
+/**
+ * Crear o editar una tarea (con `homework`, edita y permite eliminar). La
+ * sección y el peso de la columna que genera en la planilla solo se eligen al
+ * crearla; después se ajustan desde "Configurar planilla".
+ */
 export function NewHomeworkDialog({
   open,
   onOpenChange,
   groupSubjectId,
   periodId,
+  homework,
+  onDeleted,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupSubjectId: number
   periodId: number
+  homework?: Homework
+  onDeleted?: () => void
 }) {
   const queryClient = useQueryClient()
+  const isEdit = !!homework
   const { data: sections } = useQuery({
     queryKey: ['grade-sections', groupSubjectId, periodId],
     queryFn: () => gradeSectionsApi.list(groupSubjectId, periodId),
+    enabled: !isEdit,
   })
 
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [assignedDate, setAssignedDate] = useState(today())
-  const [dueDate, setDueDate] = useState('')
-  const [maxScore, setMaxScore] = useState('10')
+  const [title, setTitle] = useState(homework?.title ?? '')
+  const [description, setDescription] = useState(homework?.description ?? '')
+  const [notes, setNotes] = useState(homework?.notes ?? '')
+  const [assignedDate, setAssignedDate] = useState(homework?.assigned_date.slice(0, 10) ?? today())
+  const [dueDate, setDueDate] = useState(homework?.due_date.slice(0, 10) ?? '')
+  const [maxScore, setMaxScore] = useState(homework ? String(Number(homework.max_score)) : '10')
   const [isGraded, setIsGraded] = useState(false)
   const [gradeSectionId, setGradeSectionId] = useState<number | ''>('')
   const [weight, setWeight] = useState('')
@@ -52,9 +68,76 @@ export function NewHomeworkDialog({
     setWeight('')
   }
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['homeworks', groupSubjectId, periodId] })
+    queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+    if (homework) queryClient.invalidateQueries({ queryKey: ['homework-deliveries', homework.id] })
+  }
+
+  const remove = async () => {
+    if (!homework) return
+    if (!window.confirm(`¿Eliminar la tarea "${homework.title}"?`)) return
+    setSaving(true)
+    try {
+      await homeworksApi.remove(homework.id)
+    } catch (error) {
+      // 409: la tarea ya tiene notas en la planilla — se pide una segunda confirmación.
+      if (axios.isAxiosError(error) && error.response?.status === 409) {
+        const ok = window.confirm(
+          'Esta tarea tiene notas en la planilla. Si la eliminas, se borra su columna con esas notas y se recalculan las definitivas. ¿Continuar?'
+        )
+        if (!ok) {
+          setSaving(false)
+          return
+        }
+        try {
+          await homeworksApi.remove(homework.id, true)
+        } catch {
+          toast.error('No pudimos eliminar la tarea.')
+          setSaving(false)
+          return
+        }
+      } else {
+        toast.error('No pudimos eliminar la tarea.')
+        setSaving(false)
+        return
+      }
+    }
+    setSaving(false)
+    toast.success('Tarea eliminada.')
+    invalidate()
+    onOpenChange(false)
+    onDeleted?.()
+  }
+
   const save = async () => {
     if (!title || !dueDate) {
       toast.error('Completa el título y la fecha de entrega.')
+      return
+    }
+    if (dueDate < assignedDate) {
+      toast.error('La fecha de entrega no puede ser anterior a la de asignación.')
+      return
+    }
+    if (isEdit && homework) {
+      setSaving(true)
+      try {
+        await homeworksApi.update(homework.id, {
+          title,
+          description: description || undefined,
+          notes: notes || undefined,
+          assigned_date: assignedDate,
+          due_date: dueDate,
+          max_score: Number(maxScore),
+        })
+        toast.success('Tarea actualizada.')
+        invalidate()
+        onOpenChange(false)
+      } catch {
+        toast.error('No pudimos actualizar la tarea.')
+      } finally {
+        setSaving(false)
+      }
       return
     }
     if (isGraded && (!gradeSectionId || !weight)) {
@@ -75,9 +158,10 @@ export function NewHomeworkDialog({
         is_graded: isGraded,
         grade_section_id: isGraded ? Number(gradeSectionId) : undefined,
         weight: isGraded ? Number(weight) : undefined,
+        notes: notes || undefined,
       })
       toast.success('Tarea creada.')
-      queryClient.invalidateQueries({ queryKey: ['homeworks', groupSubjectId, periodId] })
+      invalidate()
       onOpenChange(false)
       reset()
     } catch {
@@ -91,7 +175,7 @@ export function NewHomeworkDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nueva tarea</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar tarea' : 'Nueva tarea'}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -125,12 +209,26 @@ export function NewHomeworkDialog({
             <Input type="number" step="0.1" value={maxScore} onChange={(e) => setMaxScore(e.target.value)} />
           </div>
 
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={isGraded} onChange={(e) => setIsGraded(e.target.checked)} />
-            ¿Genera calificación en la planilla?
-          </label>
+          <div className="space-y-1">
+            <Label>Notas internas (opcional)</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Solo las ves tú" />
+          </div>
 
-          {isGraded && (
+          {isEdit ? (
+            homework?.is_graded && (
+              <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                Esta tarea genera una columna en la planilla. Su nombre y su nota máxima se actualizan con la tarea; la
+                sección y el peso se cambian en "Configurar planilla".
+              </p>
+            )
+          ) : (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={isGraded} onChange={(e) => setIsGraded(e.target.checked)} />
+              ¿Genera calificación en la planilla?
+            </label>
+          )}
+
+          {!isEdit && isGraded && (
             <div className="flex flex-col gap-2 rounded-md border p-2">
               <div className="space-y-1">
                 <Label>Sección de la planilla</Label>
@@ -157,9 +255,16 @@ export function NewHomeworkDialog({
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {isEdit ? (
+            <Button variant="ghost" className="text-destructive" onClick={remove} disabled={saving}>
+              <Trash2 className="h-4 w-4" /> Eliminar
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button onClick={save} disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar tarea'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Guardar tarea'}
           </Button>
         </DialogFooter>
       </DialogContent>

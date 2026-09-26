@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import { copyChargesApi } from '@/services/api/copyCharges'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { useActiveCourseGroup } from '@/hooks/useActiveCourseGroup'
 import { NewChargeDialog } from '@/pages/copies/NewChargeDialog'
+import type { CopyCharge } from '@/types/copies'
 
 export function Copies() {
   const { data: institution } = useCurrentInstitution()
@@ -20,6 +21,7 @@ export function Copies() {
   const [groupId, setGroupId] = useState<number | ''>('')
   const [periodId, setPeriodId] = useState<number | ''>('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [editing, setEditing] = useState<CopyCharge | null>(null)
 
   const { data: groups } = useQuery({
     queryKey: ['groups', institution?.id],
@@ -88,9 +90,19 @@ export function Copies() {
           return (
             <Card key={charge.id}>
               <CardContent className="flex flex-col gap-2 py-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{charge.description}</span>
-                  <span className="text-sm text-muted-foreground">{charge.charge_date.slice(0, 10)}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground">{charge.charge_date.slice(0, 10)}</span>
+                    <button
+                      type="button"
+                      className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label="Editar cobro"
+                      onClick={() => setEditing(charge)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
                   {charge.quantity} copias × ${Number(charge.unit_price).toLocaleString('es-CO')} = $
@@ -109,6 +121,16 @@ export function Copies() {
           )
         })}
       </div>
+
+      {groupId && editing && (
+        <NewChargeDialog
+          key={editing.id}
+          open
+          onOpenChange={(open) => !open && setEditing(null)}
+          groupId={groupId}
+          charge={editing}
+        />
+      )}
 
       {groupId && (
         <NewChargeDialog

@@ -1,10 +1,19 @@
 import { Fragment, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { toast } from 'sonner'
 
 import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
-import type { GradeColumn, GradeSheetResponse } from '@/types/grades'
+import { ConventionPopover } from '@/pages/grades/conventions'
+import {
+  conventionTitle,
+  gradeCellDisplay,
+  inputFromConvention,
+  parseGradeInput,
+  type GradeInput,
+} from '@/pages/grades/conventionHelpers'
+import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
 import { ListChecks } from 'lucide-react'
 
 type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
@@ -22,29 +31,48 @@ export function GradeSheetTable({
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
   const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
 
+  // Encabezado fijo en dos filas: la segunda (actividades) se pega justo debajo
+  // de la primera (secciones), así que necesita el alto real de esa fila, que
+  // cambia si el nombre de una sección ocupa dos líneas.
+  const firstHeaderRowRef = useRef<HTMLTableRowElement>(null)
+  const [firstHeaderRowHeight, setFirstHeaderRowHeight] = useState(0)
+  useLayoutEffect(() => {
+    const row = firstHeaderRowRef.current
+    if (!row) return
+    const measure = () => setFirstHeaderRowHeight(row.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(row)
+    return () => observer.disconnect()
+  }, [])
+  const secondRowTop = { top: firstHeaderRowHeight }
+
   return (
     <>
-    <div className="hidden overflow-x-auto rounded-lg border lg:block">
-      <table className="w-full border-collapse text-sm">
+    {/* Scroll propio (alto máximo) para que los encabezados queden fijos al bajar:
+        un sticky top dentro de un contenedor con overflow se pega a ese contenedor.
+        border-separate: con border-collapse las celdas fijas pierden los bordes. */}
+    <div className="hidden max-h-[75vh] overflow-auto rounded-lg border lg:block">
+      <table className="w-full border-separate border-spacing-0 text-sm">
         <thead>
-          <tr>
-            <th rowSpan={2} className="sticky left-0 z-10 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
+          <tr ref={firstHeaderRowRef}>
+            <th rowSpan={2} className="sticky left-0 top-0 z-30 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
               Apellidos
             </th>
-            <th rowSpan={2} className="sticky left-[140px] z-10 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
+            <th rowSpan={2} className="sticky left-[140px] top-0 z-30 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
               Nombres
             </th>
             {sheet.sections.map((section) => (
               <th
                 key={section.id}
                 colSpan={section.columns.length + (section.has_section_final ? 1 : 0)}
-                className="border-b border-l px-3 py-2 text-center text-white"
+                className="sticky top-0 z-20 border-b border-l px-3 py-2 text-center text-white"
                 style={{ backgroundColor: section.color }}
               >
                 {section.name} ({Number(section.weight)}%)
               </th>
             ))}
-            <th rowSpan={2} className="border-b border-l bg-muted px-3 py-2 text-center font-semibold">
+            <th rowSpan={2} className="sticky top-0 z-20 border-b border-l bg-muted px-3 py-2 text-center font-semibold">
               Def Total
             </th>
           </tr>
@@ -52,7 +80,12 @@ export function GradeSheetTable({
             {sheet.sections.map((section) => (
               <Fragment key={section.id}>
                 {section.columns.map((column) => (
-                  <th key={column.id} className="min-w-[72px] border-b border-l px-2 py-2 text-center font-medium">
+                  <th
+                    key={column.id}
+                    className="sticky z-20 min-w-[72px] border-b border-l bg-card px-2 py-2 text-center font-medium"
+                    style={secondRowTop}
+                    title={[column.name, column.date?.slice(0, 10), column.description].filter(Boolean).join(' · ')}
+                  >
                     {column.column_type === 'manual' ? (
                       <button
                         type="button"
@@ -69,7 +102,10 @@ export function GradeSheetTable({
                   </th>
                 ))}
                 {section.has_section_final && (
-                  <th className="min-w-[72px] border-b border-l bg-muted px-2 py-2 text-center font-medium">
+                  <th
+                    className="sticky z-20 min-w-[72px] border-b border-l bg-muted px-2 py-2 text-center font-medium"
+                    style={secondRowTop}
+                  >
                     {section.section_final_label}
                   </th>
                 )}
@@ -97,11 +133,12 @@ export function GradeSheetTable({
                         return (
                           <td key={column.id} className="border-b border-l p-0 text-center">
                             <EditableGradeCell
-                              score={grade?.score ?? null}
+                              grade={grade}
+                              conventions={sheet.conventions}
                               minPassing={sheet.min_passing_grade}
                               readOnly={isComputed}
-                              onSave={(value) =>
-                                saveGrade.mutate({ studentId: student.id, columnId: column.id, score: value })
+                              onSave={(input) =>
+                                saveGrade.mutate({ studentId: student.id, columnId: column.id, ...input })
                               }
                             />
                           </td>
@@ -229,22 +266,24 @@ function ReadOnlyCell({
 }
 
 function EditableGradeCell({
-  score,
+  grade,
+  conventions,
   minPassing,
   readOnly,
   onSave,
 }: {
-  score: string | number | null
+  grade: Grade | undefined
+  conventions: GradeConvention[]
   minPassing: number
   readOnly: boolean
-  onSave: (value: number | null) => void
+  onSave: (input: GradeInput) => void
 }) {
   const [editing, setEditing] = useState(false);
   const lockedWidthRef = useRef<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const numeric = score === null ? null : Number(score)
-  const [draft, setDraft] = useState(numeric === null ? '' : String(numeric))
-  const { background, text } = getGradeColor(numeric, minPassing)
+  const { content, numeric, convention, colors } = gradeCellDisplay(grade, conventions, minPassing)
+  const { background, text } = colors
+  const [draft, setDraft] = useState(content === '—' ? '' : content)
 
   // El <input> nativo aporta un ancho "preferido" intrínseco al algoritmo de layout "auto"
   // de la tabla que ninguna combinación de width/max-width/contain en el propio input (ni
@@ -263,7 +302,7 @@ function EditableGradeCell({
   if (readOnly) {
     return (
       <div className="px-2 py-2" style={{ backgroundColor: background, color: text }}>
-        {numeric !== null ? numeric.toFixed(1) : '—'}
+        {content}
       </div>
     )
   }
@@ -274,24 +313,38 @@ function EditableGradeCell({
         type="button"
         className="block w-full px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
         style={{ backgroundColor: background, color: text }}
+        title={convention ? conventionTitle(convention) : undefined}
         onClick={(e) => {
           lockedWidthRef.current = e.currentTarget.offsetWidth
-          setDraft(numeric === null ? '' : String(numeric))
+          setDraft(content === '—' ? '' : content)
           setEditing(true)
         }}
       >
-        {numeric !== null ? numeric.toFixed(1) : '—'}
+        {content}
       </button>
     )
   }
 
-  const commit = () => {
+  const save = (input: GradeInput) => {
     setEditing(false)
-    const trimmed = draft.trim()
-    const value = trimmed === '' ? null : Number(trimmed)
-    if (value !== numeric) {
-      onSave(Number.isNaN(value as number) ? null : value)
+    const unchanged = input.conventionId === (convention?.id ?? null) && (input.conventionId !== null || input.score === numeric)
+    if (!unchanged) {
+      onSave(input)
     }
+  }
+
+  const commit = () => {
+    const parsed = parseGradeInput(draft, conventions)
+    if (parsed.kind === 'invalid') {
+      setEditing(false)
+      toast.error(`"${draft.trim()}" no es una nota ni una de tus convenciones.`)
+      return
+    }
+    save(
+      parsed.kind === 'convention'
+        ? inputFromConvention(parsed.convention)
+        : { score: parsed.kind === 'score' ? parsed.value : null, conventionId: null }
+    )
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -303,18 +356,20 @@ function EditableGradeCell({
     }
   }
 
+  // type="text" (no "number"): la celda también acepta abreviaturas como NP u Ok.
   return (
-    <input
-      ref={inputRef}
-      autoFocus
-      type="number"
-      inputMode="decimal"
-      step="0.1"
-      className="block w-full bg-background px-2 py-2 text-center text-foreground outline-none ring-2 ring-inset ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={handleKeyDown}
-    />
+    <>
+      <input
+        ref={inputRef}
+        autoFocus
+        type="text"
+        className="block w-full bg-background px-2 py-2 text-center text-foreground outline-none ring-2 ring-inset ring-primary"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={handleKeyDown}
+      />
+      <ConventionPopover anchorRef={inputRef} conventions={conventions} onPick={(c) => save(inputFromConvention(c))} />
+    </>
   )
 }

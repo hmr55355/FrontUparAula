@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
-import { X } from 'lucide-react'
+import { Check, Pencil, X } from 'lucide-react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -543,6 +543,8 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
     queryClient.invalidateQueries({ queryKey: gradeLevelsQueryKey(institutionId) })
     queryClient.invalidateQueries({ queryKey: shiftsQueryKey(institutionId) })
     queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'assignment-grid'] })
+    // El nombre del grupo sale en el selector de cursos y en "Mis cursos".
+    queryClient.invalidateQueries({ queryKey: ['group-subjects'] })
   }
 
   const createGroup = useMutation({
@@ -563,7 +565,7 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
   })
 
   const updateGroup = useMutation({
-    mutationFn: (vars: { id: number; grade_level_id?: number; shift_id?: number }) => {
+    mutationFn: (vars: { id: number; name?: string; grade_level_id?: number; shift_id?: number }) => {
       const { id, ...payload } = vars
       return api.put(`/groups/${id}`, payload)
     },
@@ -667,7 +669,13 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
           <TableBody>
             {visibleGroups?.map((g) => (
               <TableRow key={g.id}>
-                <TableCell className="font-medium">{g.name}</TableCell>
+                <TableCell className="font-medium">
+                  <InlineNameEdit
+                    value={g.name}
+                    disabled={updateGroup.isPending}
+                    onSave={(name) => updateGroup.mutate({ id: g.id, name })}
+                  />
+                </TableCell>
                 <TableCell>
                   <select
                     className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
@@ -709,8 +717,9 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
 function SubjectsPanel({ institutionId }: { institutionId: number }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
+  const [newColor, setNewColor] = useState(SUBJECT_COLORS[0])
   const [newGradeIds, setNewGradeIds] = useState<number[]>([])
-  const [editing, setEditing] = useState<{ id: number; gradeIds: number[] } | null>(null)
+  const [editing, setEditing] = useState<{ id: number; name: string; color: string; gradeIds: number[] } | null>(null)
 
   const { data: subjects } = useQuery({
     queryKey: ['subjects', institutionId],
@@ -728,24 +737,33 @@ function SubjectsPanel({ institutionId }: { institutionId: number }) {
     queryClient.invalidateQueries({ queryKey: ['subjects', institutionId] })
     queryClient.invalidateQueries({ queryKey: gradeLevelsQueryKey(institutionId) })
     queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'assignment-grid'] })
+    queryClient.invalidateQueries({ queryKey: ['group-subjects'] })
   }
 
   const createSubject = useMutation({
-    mutationFn: () => api.post('/subjects', { institution_id: institutionId, name, grade_level_ids: newGradeIds }),
+    mutationFn: () =>
+      api.post('/subjects', { institution_id: institutionId, name, color: newColor, grade_level_ids: newGradeIds }),
     onSuccess: () => {
       toast.success('Materia creada.')
       setName('')
+      setNewColor(SUBJECT_COLORS[0])
       setNewGradeIds([])
       invalidate()
     },
     onError: () => toast.error('No pudimos crear la materia.'),
   })
 
-  const saveGrades = useMutation({
-    mutationFn: (vars: { id: number; gradeIds: number[] }) =>
-      api.put(`/subjects/${vars.id}`, { grade_level_ids: vars.gradeIds }),
+  const saveSubject = useMutation({
+    // El color solo se manda si cambió: una materia antigua con un color en otro
+    // formato no debe fallar la validación (#RRGGBB) al editar su nombre o grados.
+    mutationFn: (vars: { id: number; name: string; color: string; gradeIds: number[] }) =>
+      api.put(`/subjects/${vars.id}`, {
+        name: vars.name.trim(),
+        grade_level_ids: vars.gradeIds,
+        ...(vars.color !== subjects?.find((x) => x.id === vars.id)?.color && { color: vars.color }),
+      }),
     onSuccess: () => {
-      toast.success('Grados de la materia actualizados.')
+      toast.success('Materia actualizada.')
       setEditing(null)
       invalidate()
     },
@@ -767,6 +785,7 @@ function SubjectsPanel({ institutionId }: { institutionId: number }) {
               Agregar materia
             </Button>
           </div>
+          <SubjectColorPicker value={newColor} onChange={setNewColor} />
           {!!gradeLevels?.length && (
             <GradeCheckboxes
               gradeLevels={gradeLevels}
@@ -798,25 +817,43 @@ function SubjectsPanel({ institutionId }: { institutionId: number }) {
                     variant="ghost"
                     size="sm"
                     className="ml-auto"
-                    onClick={() => setEditing(isEditing ? null : { id: s.id, gradeIds })}
+                    onClick={() =>
+                      setEditing(isEditing ? null : { id: s.id, name: s.name, color: s.color, gradeIds })
+                    }
                   >
-                    {isEditing ? 'Cancelar' : 'Grados'}
+                    {isEditing ? 'Cancelar' : 'Editar'}
                   </Button>
                 </div>
-                {isEditing && editing && gradeLevels && (
+                {isEditing && editing && (
                   <div className="flex flex-col gap-2 border-t pt-2">
-                    <GradeCheckboxes
-                      gradeLevels={gradeLevels}
-                      selected={editing.gradeIds}
-                      onToggle={(id) => setEditing({ ...editing, gradeIds: toggle(editing.gradeIds, id) })}
-                    />
+                    <div className="space-y-1">
+                      <Label className="text-xs">Nombre</Label>
+                      <Input
+                        className="h-9 max-w-sm"
+                        value={editing.name}
+                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                      />
+                    </div>
+                    <SubjectColorPicker value={editing.color} onChange={(color) => setEditing({ ...editing, color })} />
+                    {gradeLevels && (
+                      <GradeCheckboxes
+                        gradeLevels={gradeLevels}
+                        selected={editing.gradeIds}
+                        onToggle={(id) => setEditing({ ...editing, gradeIds: toggle(editing.gradeIds, id) })}
+                      />
+                    )}
+                    {gradeIds.some((id) => !editing.gradeIds.includes(id)) && (
+                      <p className="text-xs text-muted-foreground">
+                        Quitar un grado no borra los cursos que ya están asignados en sus grupos; solo impide asignar nuevos.
+                      </p>
+                    )}
                     <Button
                       size="sm"
                       className="w-fit"
-                      onClick={() => saveGrades.mutate(editing)}
-                      disabled={saveGrades.isPending}
+                      onClick={() => saveSubject.mutate(editing)}
+                      disabled={!editing.name.trim() || saveSubject.isPending}
                     >
-                      Guardar grados
+                      Guardar cambios
                     </Button>
                   </div>
                 )}
@@ -826,6 +863,113 @@ function SubjectsPanel({ institutionId }: { institutionId: number }) {
         </div>
       </CardContent>
     </Card>
+  )
+}
+
+/**
+ * Colores sugeridos para materias: oscuros, porque la materia se muestra con texto
+ * blanco encima (encabezados de la planilla, asignaciones, insignias).
+ */
+const SUBJECT_COLORS = [
+  '#1565C0', '#283593', '#6A1B9A', '#AD1457', '#C62828', '#EF6C00',
+  '#2E7D32', '#558B2F', '#00695C', '#00838F', '#4E342E', '#37474F',
+]
+
+function SubjectColorPicker({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  const isCustom = !SUBJECT_COLORS.some((c) => c.toLowerCase() === value.toLowerCase())
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <span className="mr-1 text-sm text-muted-foreground">Color:</span>
+      {SUBJECT_COLORS.map((color) => (
+        <button
+          key={color}
+          type="button"
+          onClick={() => onChange(color)}
+          className={`h-7 w-7 rounded-full border-2 ${color.toLowerCase() === value.toLowerCase() ? 'border-foreground' : 'border-transparent'}`}
+          style={{ backgroundColor: color }}
+          aria-label={`Color ${color}`}
+        />
+      ))}
+      <label
+        className={`relative flex h-7 cursor-pointer items-center gap-1 rounded-full border-2 px-2 text-xs ${isCustom ? 'border-foreground' : 'border-input'}`}
+        title="Otro color"
+      >
+        <span className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: value }} />
+        Otro
+        <input
+          type="color"
+          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          value={value}
+          onChange={(e) => onChange(e.target.value.toUpperCase())}
+        />
+      </label>
+      <span
+        className="ml-2 rounded px-2 py-0.5 text-xs font-medium text-white"
+        style={{ backgroundColor: value }}
+      >
+        Vista previa
+      </span>
+    </div>
+  )
+}
+
+/** Nombre con lápiz para editarlo en el sitio (Enter guarda, Escape cancela). */
+function InlineNameEdit({
+  value,
+  onSave,
+  disabled,
+}: {
+  value: string
+  onSave: (value: string) => void
+  disabled?: boolean
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+
+  if (!editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {value}
+        <button
+          type="button"
+          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => {
+            setDraft(value)
+            setEditing(true)
+          }}
+          aria-label="Cambiar nombre"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      </span>
+    )
+  }
+
+  const save = () => {
+    const name = draft.trim()
+    setEditing(false)
+    if (name && name !== value) onSave(name)
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <Input
+        autoFocus
+        className="h-8 w-28"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save()
+          if (e.key === 'Escape') setEditing(false)
+        }}
+      />
+      <Button size="icon" variant="ghost" className="h-7 w-7" disabled={disabled || !draft.trim()} onClick={save} aria-label="Guardar nombre">
+        <Check className="h-4 w-4" />
+      </Button>
+      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(false)} aria-label="Cancelar">
+        <X className="h-4 w-4" />
+      </Button>
+    </span>
   )
 }
 
@@ -1009,17 +1153,20 @@ function AssignmentsPanel({ institutionId }: { institutionId: number }) {
           )}
           <span>"No aplica": la materia no está vinculada al grado del grupo (se vincula en Materias).</span>
         </div>
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full border-collapse text-sm">
+        {/* Scroll propio (alto máximo) para que el encabezado de materias quede fijo
+            al bajar: un sticky top dentro de overflow-x-auto se pega a este
+            contenedor, no a la página, así que el contenedor debe tener su scroll vertical. */}
+        <div className="max-h-[70vh] overflow-auto rounded-lg border">
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
+                <th className="sticky left-0 top-0 z-30 min-w-[140px] border-b border-r bg-card px-3 py-2 text-left">
                   Grupo
                 </th>
                 {grid.subjects.map((s) => (
                   <th
                     key={s.id}
-                    className="min-w-[180px] border-b border-l px-3 py-2 text-center text-white"
+                    className="sticky top-0 z-20 min-w-[180px] border-b border-l px-3 py-2 text-center text-white"
                     style={{ backgroundColor: s.color }}
                   >
                     {s.name}

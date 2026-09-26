@@ -159,29 +159,30 @@ export function AttendanceSheet() {
           </CardContent>
         </Card>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full border-collapse text-sm">
+        // Scroll propio para que las fechas queden fijas al bajar (ver GradeSheetTable).
+        <div className="max-h-[75vh] overflow-auto rounded-lg border">
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
               <tr>
-                <th className="sticky left-0 z-10 min-w-[180px] border-b border-r bg-card px-3 py-2 text-left">
+                <th className="sticky left-0 top-0 z-30 min-w-[180px] border-b border-r bg-card px-3 py-2 text-left">
                   Estudiante
                 </th>
                 {sheet.dates.map((date) => {
                   const { weekday, label } = formatHeader(date)
                   return (
-                    <th key={date} className="min-w-[52px] border-b border-l px-1 py-1 text-center font-medium">
+                    <th key={date} className="sticky top-0 z-20 min-w-[52px] border-b border-l bg-card px-1 py-1 text-center font-medium">
                       <span className="block text-[11px] text-muted-foreground">{weekday}</span>
                       {label}
                     </th>
                   )
                 })}
-                <th className="border-b border-l bg-muted px-2 py-2 text-center font-medium" title="Faltas injustificadas">
+                <th className="sticky top-0 z-20 border-b border-l bg-muted px-2 py-2 text-center font-medium" title="Faltas injustificadas">
                   A
                 </th>
-                <th className="border-b border-l bg-muted px-2 py-2 text-center font-medium" title="Faltas justificadas">
+                <th className="sticky top-0 z-20 border-b border-l bg-muted px-2 py-2 text-center font-medium" title="Faltas justificadas">
                   J
                 </th>
-                <th className="border-b border-l bg-muted px-2 py-2 text-center font-medium" title="Llegadas tarde">
+                <th className="sticky top-0 z-20 border-b border-l bg-muted px-2 py-2 text-center font-medium" title="Llegadas tarde">
                   T
                 </th>
               </tr>

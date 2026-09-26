@@ -25,6 +25,8 @@ export interface BehaviorAnnotation {
   registered_by: number
   teacher_name?: string
   student?: { id: number; first_name: string; last_name: string }
+  /** Citaciones de seguimiento creadas desde la anotación (viene en el listado). */
+  citations_count?: number
 }
 
 export const BEHAVIOR_TYPE_LABELS: Record<BehaviorType, string> = {

@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { groupSubjectsApi } from '@/services/api/groupSubjects'
 import { useActivePeriod } from '@/hooks/useActivePeriod'
+import { useActiveShift } from '@/hooks/useActiveShift'
+import { useActiveCourseStore } from '@/store/activeCourseStore'
 import type { GroupSubject } from '@/types'
 
 export function MyCourses() {
@@ -15,6 +17,22 @@ export function MyCourses() {
     queryKey: ['group-subjects', 'mine'],
     queryFn: groupSubjectsApi.myCourses,
   })
+  const { teacherShifts, activeShiftId } = useActiveShift()
+  // Con varias jornadas: todos los cursos, agrupados por jornada (la activa primero).
+  const sections =
+    teacherShifts.length > 1
+      ? [...teacherShifts]
+          .sort((a, b) => Number(b.id === activeShiftId) - Number(a.id === activeShiftId))
+          .map((shift) => ({
+            id: shift.id,
+            title: shift.name,
+            courses: (courses ?? []).filter((c) => c.group?.shift_id === shift.id),
+          }))
+          .concat([
+            { id: 0, title: 'Sin jornada', courses: (courses ?? []).filter((c) => !c.group?.shift_id) },
+          ])
+          .filter((section) => section.courses.length > 0)
+      : [{ id: 0, title: '', courses: courses ?? [] }]
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-4">
@@ -35,17 +53,28 @@ export function MyCourses() {
         </Card>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        {courses?.map((course) => (
-          <CourseCard key={course.id} course={course} />
-        ))}
-      </div>
+      {sections.map((section) => (
+        <div key={section.id} className="flex flex-col gap-2">
+          {section.title && (
+            <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+              Jornada {section.title}
+              {section.id === activeShiftId && <span className="ml-2 normal-case text-primary">(activa)</span>}
+            </h2>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            {section.courses.map((course) => (
+              <CourseCard key={course.id} course={course} />
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
 function CourseCard({ course }: { course: GroupSubject }) {
   const { activePeriod, isLoading } = useActivePeriod(course.academic_year_id)
+  const setActiveCourse = useActiveCourseStore((s) => s.setActiveCourse)
 
   return (
     <Card>
@@ -64,7 +93,18 @@ function CourseCard({ course }: { course: GroupSubject }) {
         </span>
         <Button size="sm" disabled={isLoading || !activePeriod} asChild={!isLoading && !!activePeriod}>
           {!isLoading && activePeriod ? (
-            <Link to={`/grades/${course.id}/${activePeriod.id}`}>
+            <Link
+              to={`/grades/${course.id}/${activePeriod.id}`}
+              // Activarlo también mueve la jornada si el curso es de otra.
+              onClick={() =>
+                setActiveCourse({
+                  groupSubjectId: course.id,
+                  groupName: course.group?.name ?? '',
+                  subjectName: course.subject?.name ?? '',
+                  subjectColor: course.subject?.color ?? '#1565C0',
+                })
+              }
+            >
               Ir a la planilla <ArrowRight className="h-4 w-4" />
             </Link>
           ) : (

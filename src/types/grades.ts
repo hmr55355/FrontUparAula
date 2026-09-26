@@ -44,6 +44,8 @@ export interface Grade {
   group_subject_id: number
   period_id: number
   score: string | number | null
+  /** Convención con la que se puso la nota (NP, ✓…); su score es el valor de la convención. */
+  convention_id: number | null
   is_excused: boolean
   excused_reason: string | null
   notes: string | null
@@ -84,6 +86,18 @@ export interface GradeSheetResponse {
   section_finals: Record<number, Record<number, SectionFinal>>
   period_finals: Record<number, PeriodFinal>
   min_passing_grade: number
+  /** Convenciones del docente del curso, en su orden. */
+  conventions: GradeConvention[]
+}
+
+/** Abreviatura o ícono (NP, ✓…) con su significado y la nota que vale (null = no cuenta en el promedio). */
+export interface GradeConvention {
+  id: number
+  user_id: number
+  code: string
+  label: string
+  value: string | number | null
+  sort_order: number
 }
 
 export interface GradeTemplate {
@@ -104,6 +118,8 @@ export interface GradeColumnDraft {
   column_type: GradeColumnType
   weight: number
   max_score?: number
+  description?: string | null
+  date?: string | null
   attendance_base_score?: number
   absence_penalty?: number
   justified_absence_penalty?: number
@@ -117,6 +133,7 @@ export interface GradeSectionDraft {
   weight: number
   color: string
   has_section_final: boolean
+  section_final_label?: string
   final_calculation: FinalCalculation
   columns: GradeColumnDraft[]
 }

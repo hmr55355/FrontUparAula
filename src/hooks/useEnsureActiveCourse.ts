@@ -1,32 +1,68 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { useActiveCourseStore } from '@/store/activeCourseStore'
+import type { useActiveShift } from '@/hooks/useActiveShift'
 import type { GroupSubject } from '@/types'
 
+function snapshot(course: GroupSubject) {
+  return {
+    groupSubjectId: course.id,
+    groupName: course.group?.name ?? '',
+    subjectName: course.subject?.name ?? '',
+    subjectColor: course.subject?.color ?? '#1565C0',
+  }
+}
+
 /**
- * Restores the last active course on load, or falls back to the first course
- * available to the teacher if they no longer have access to the stored one.
+ * Mantiene el curso activo coherente con la jornada activa:
+ * - Si el docente eligió un curso de otra jornada (desde "Mis cursos", el
+ *   Dashboard…), la jornada lo sigue.
+ * - Si cambió la jornada (a mano o porque cambió la hora) y el curso activo no
+ *   es de ella, pasa al primer curso de la nueva jornada.
+ * - Si ya no tiene acceso al curso guardado, toma el primero disponible.
+ * También refresca el nombre guardado si el grupo o la materia se renombraron.
+ * Todo en un solo efecto: dos efectos separados se pisaban en el mismo render.
  */
-export function useEnsureActiveCourse(courses: GroupSubject[] | undefined) {
+export function useEnsureActiveCourse(shift: ReturnType<typeof useActiveShift>) {
   const { activeCourse, setActiveCourse } = useActiveCourseStore()
+  const { courses, coursesInShift, shiftOfCourse, activeShiftId, setShift } = shift
+  const lastCourseId = useRef(activeCourse?.groupSubjectId)
 
   useEffect(() => {
-    if (!courses || courses.length === 0) {
+    if (!courses || !coursesInShift || courses.length === 0) {
       return
     }
 
-    const stillHasAccess = activeCourse && courses.some((c) => c.id === activeCourse.groupSubjectId)
+    const id = activeCourse?.groupSubjectId
+    const courseChanged = id !== lastCourseId.current
+    lastCourseId.current = id
 
-    if (!stillHasAccess) {
-      const first = courses[0]
-      setActiveCourse({
-        groupSubjectId: first.id,
-        groupName: first.group?.name ?? '',
-        subjectName: first.subject?.name ?? '',
-        subjectColor: first.subject?.color ?? '#1565C0',
-      })
+    const current = id ? courses.find((c) => c.id === id) : undefined
+    const courseShiftId = current ? shiftOfCourse.get(current.id) : undefined
+
+    if (current && courseChanged && courseShiftId && activeShiftId !== null && courseShiftId !== activeShiftId) {
+      setShift(courseShiftId)
+      return
     }
-  }, [courses, activeCourse, setActiveCourse])
+
+    if (!current || !coursesInShift.some((c) => c.id === current.id)) {
+      const fallback = coursesInShift[0] ?? courses[0]
+      if (fallback.id !== id) {
+        setActiveCourse(snapshot(fallback))
+      }
+      return
+    }
+
+    const fresh = snapshot(current)
+    if (
+      activeCourse &&
+      (fresh.groupName !== activeCourse.groupName ||
+        fresh.subjectName !== activeCourse.subjectName ||
+        fresh.subjectColor !== activeCourse.subjectColor)
+    ) {
+      setActiveCourse(fresh)
+    }
+  }, [courses, coursesInShift, shiftOfCourse, activeShiftId, setShift, activeCourse, setActiveCourse])
 
   return activeCourse
 }

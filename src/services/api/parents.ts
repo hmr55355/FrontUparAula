@@ -18,4 +18,7 @@ export const parentsApi = {
 
   create: (payload: CreateParentPayload) =>
     api.post<{ data: ParentGuardian }>('/parents', payload).then((r) => r.data.data),
+
+  update: (id: number, payload: Partial<Omit<CreateParentPayload, 'student_id' | 'is_primary'>>) =>
+    api.put<{ data: ParentGuardian }>(`/parents/${id}`, payload).then((r) => r.data.data),
 }

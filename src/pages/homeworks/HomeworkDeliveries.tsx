@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { homeworksApi } from '@/services/api/homeworks'
 import { DELIVERY_CYCLE, DELIVERY_LABELS } from '@/types/homeworks'
 import type { DeliveryStatus } from '@/types/homeworks'
+import { NewHomeworkDialog } from '@/pages/homeworks/NewHomeworkDialog'
 
 function deliveryColor(status: DeliveryStatus | null) {
   switch (status) {
@@ -30,6 +31,8 @@ export function HomeworkDeliveries() {
   const { homeworkId } = useParams<{ homeworkId: string }>()
   const id = Number(homeworkId)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const [editOpen, setEditOpen] = useState(false)
 
   const [statuses, setStatuses] = useState<Record<number, DeliveryStatus | null>>({})
   const [scores, setScores] = useState<Record<number, string>>({})
@@ -100,12 +103,29 @@ export function HomeworkDeliveries() {
         <Link to="/homeworks" className="flex items-center gap-1 text-sm text-primary hover:underline">
           <ArrowLeft className="h-4 w-4" /> Volver a tareas
         </Link>
-        <h1 className="mt-1 text-xl font-semibold">{data.homework.title}</h1>
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <h1 className="text-xl font-semibold">{data.homework.title}</h1>
+          <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil className="h-4 w-4" /> Editar
+          </Button>
+        </div>
         <p className="text-sm text-muted-foreground">
           Entrega: {data.homework.due_date.slice(0, 10)}
           {data.homework.is_graded && ` · Máximo ${data.homework.max_score}`}
         </p>
+        {data.homework.description && <p className="mt-1 text-sm">{data.homework.description}</p>}
       </div>
+
+      {editOpen && (
+        <NewHomeworkDialog
+          open
+          onOpenChange={setEditOpen}
+          groupSubjectId={data.homework.group_subject_id}
+          periodId={data.homework.period_id}
+          homework={data.homework}
+          onDeleted={() => navigate('/homeworks')}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         {data.students.map((student) => {

@@ -23,3 +23,11 @@ export function getGradeColor(score: number | null | undefined, minPassing: numb
   }
   return { background: 'var(--grade-pass-bg)', text: 'var(--grade-pass-text)' }
 }
+
+/** Color de una celda con convención: si la convención vale nota, el semáforo; si no, un tono neutro propio. */
+export function getConventionColor(value: number | null, minPassing: number): GradeColorResult {
+  if (value === null) {
+    return { background: 'var(--grade-convention-bg)', text: 'var(--grade-convention-text)' }
+  }
+  return getGradeColor(value, minPassing)
+}

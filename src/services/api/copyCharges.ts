@@ -30,7 +30,7 @@ export const copyChargesApi = {
   update: (id: number, payload: Partial<CopyChargePayload>) =>
     api.put<{ data: CopyCharge }>(`/copy-charges/${id}`, payload).then((r) => r.data.data),
 
-  remove: (id: number) => api.delete(`/copy-charges/${id}`),
+  remove: (id: number, confirm?: boolean) => api.delete(`/copy-charges/${id}`, { params: { confirm } }),
 
   payments: (id: number) => api.get<CopyChargePaymentsResponse>(`/copy-charges/${id}/payments`).then((r) => r.data),
 

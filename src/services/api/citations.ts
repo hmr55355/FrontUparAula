@@ -28,6 +28,11 @@ export const citationsApi = {
   create: (payload: CitationPayload) =>
     api.post<{ data: ParentCitation }>('/citations', payload).then((r) => r.data.data),
 
+  update: (id: number, payload: Partial<Omit<CitationPayload, 'student_id' | 'group_id' | 'behavior_annotation_id'>>) =>
+    api.put<{ data: ParentCitation }>(`/citations/${id}`, payload).then((r) => r.data.data),
+
+  remove: (id: number) => api.delete(`/citations/${id}`),
+
   updateStatus: (
     id: number,
     payload: { status: CitationStatus; outcome?: string; commitments?: string; follow_up_date?: string }

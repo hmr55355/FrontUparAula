@@ -10,6 +10,7 @@ import { groupSubjectsApi } from '@/services/api/groupSubjects'
 import { academicStructureApi } from '@/services/api/academicStructure'
 import { shiftsQueryKey } from '@/pages/institution/ShiftsPanel'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { useActiveShift } from '@/hooks/useActiveShift'
 import { DAY_LABELS } from '@/types/schedule'
 import type { ClassScheduleBlock } from '@/types/schedule'
 import type { ClassBlock } from '@/types'
@@ -45,11 +46,13 @@ export function Schedule() {
   }, [courses])
   const visibleShifts = (shifts ?? []).filter((s) => teacherShiftIds.size === 0 || teacherShiftIds.has(s.id))
   const [shiftId, setShiftId] = useState<number | null>(null)
+  // Abre en la jornada activa del docente (la del día y la hora, o la que eligió).
+  const { activeShiftId } = useActiveShift()
   useEffect(() => {
     if (visibleShifts.length > 0 && (shiftId === null || !visibleShifts.some((s) => s.id === shiftId))) {
-      setShiftId(visibleShifts[0].id)
+      setShiftId(visibleShifts.find((s) => s.id === activeShiftId)?.id ?? visibleShifts[0].id)
     }
-  }, [visibleShifts, shiftId])
+  }, [visibleShifts, shiftId, activeShiftId])
   const shift = visibleShifts.find((s) => s.id === shiftId)
 
   const shiftEntries = (entries ?? []).filter(

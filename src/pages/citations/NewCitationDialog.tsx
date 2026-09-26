@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import axios from 'axios'
+import { Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,23 +13,31 @@ import { groupsApi } from '@/services/api/groups'
 import { parentsApi } from '@/services/api/parents'
 import { citationsApi } from '@/services/api/citations'
 import { CITATION_TYPE_LABELS } from '@/types/citations'
-import type { CitationType, NotificationMethod } from '@/types/citations'
+import type { CitationType, NotificationMethod, ParentCitation } from '@/types/citations'
+import { wallClockInputValue } from '@/utils/dateHelpers'
 import { RELATIONSHIP_LABELS } from '@/types/parents'
 import type { ParentRelationship } from '@/types/parents'
 
+/**
+ * Crear una citación, o con `citation` editarla/reprogramarla y eliminarla (el
+ * backend solo deja al autor o a un admin). El estudiante no cambia al editar.
+ */
 export function NewCitationDialog({
   open,
   onOpenChange,
   groupId,
   presetStudentId,
   behaviorAnnotationId,
+  citation,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupId: number
   presetStudentId?: number
   behaviorAnnotationId?: number
+  citation?: ParentCitation
 }) {
+  const isEdit = !!citation
   const queryClient = useQueryClient()
   const { data: students } = useQuery({
     queryKey: ['group-students', groupId],
@@ -54,14 +64,40 @@ export function NewCitationDialog({
 
   useEffect(() => {
     if (open) {
-      setStudentId(presetStudentId ?? '')
-      setParentId('')
-      setReason('')
-      setScheduledDate('')
-      setLocation('')
+      setStudentId(citation?.student_id ?? presetStudentId ?? '')
+      setParentId(citation?.parent_id ?? '')
+      setCitationType(citation?.citation_type ?? 'comportamiento')
+      setReason(citation?.reason ?? '')
+      setScheduledDate(wallClockInputValue(citation?.scheduled_date))
+      setLocation(citation?.location ?? '')
+      setNotificationMethod(citation?.notification_method ?? 'whatsapp')
       setAddingParent(false)
     }
-  }, [open, presetStudentId])
+  }, [open, presetStudentId, citation])
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['citations', groupId] })
+    queryClient.invalidateQueries({ queryKey: ['behavior', groupId] })
+    if (studentId) queryClient.invalidateQueries({ queryKey: ['student-profile', studentId] })
+  }
+
+  const errorText = (error: unknown, fallback: string) =>
+    (axios.isAxiosError(error) && error.response?.data?.message) || fallback
+
+  const remove = async () => {
+    if (!citation || !window.confirm('¿Eliminar esta citación?')) return
+    setSaving(true)
+    try {
+      await citationsApi.remove(citation.id)
+      toast.success('Citación eliminada.')
+      invalidate()
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(errorText(error, 'No pudimos eliminar la citación.'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const saveParent = async () => {
     if (!studentId || !newParent.first_name || !newParent.phone) {
@@ -86,6 +122,34 @@ export function NewCitationDialog({
       return
     }
     setSaving(true)
+    if (citation) {
+      try {
+        await citationsApi.update(citation.id, {
+          parent_id: parentId || null,
+          citation_type: citationType,
+          reason,
+          scheduled_date: scheduledDate || undefined,
+          location: location || undefined,
+          notification_method: notificationMethod,
+        })
+        // Cambiar la fecha de una citación ya notificada/confirmada (o a la que no
+        // asistieron) es reprogramarla: el estado lo refleja.
+        const rescheduled =
+          scheduledDate !== wallClockInputValue(citation.scheduled_date) &&
+          ['notificado', 'confirmado', 'no_asistio'].includes(citation.status)
+        if (rescheduled) {
+          await citationsApi.updateStatus(citation.id, { status: 'reprogramado' })
+        }
+        toast.success(rescheduled ? 'Citación reprogramada.' : 'Citación actualizada.')
+        invalidate()
+        onOpenChange(false)
+      } catch (error) {
+        toast.error(errorText(error, 'No pudimos actualizar la citación.'))
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
     try {
       await citationsApi.create({
         student_id: studentId,
@@ -99,8 +163,7 @@ export function NewCitationDialog({
         notification_method: notificationMethod,
       })
       toast.success('Citación creada.')
-      queryClient.invalidateQueries({ queryKey: ['citations', groupId] })
-      queryClient.invalidateQueries({ queryKey: ['student-profile', studentId] })
+      invalidate()
       onOpenChange(false)
     } catch {
       toast.error('No pudimos crear la citación.')
@@ -113,7 +176,7 @@ export function NewCitationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nueva citación</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar citación' : 'Nueva citación'}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -122,7 +185,7 @@ export function NewCitationDialog({
             <SearchableSelect
               value={studentId}
               onChange={setStudentId}
-              disabled={!!presetStudentId}
+              disabled={!!presetStudentId || isEdit}
               placeholder="Selecciona un estudiante"
               options={(students ?? []).map((s) => ({ id: s.id, label: `${s.last_name} ${s.first_name}` }))}
             />
@@ -245,9 +308,16 @@ export function NewCitationDialog({
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {isEdit ? (
+            <Button variant="ghost" className="text-destructive" onClick={remove} disabled={saving}>
+              <Trash2 className="h-4 w-4" /> Eliminar
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button onClick={save} disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar citación'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Guardar citación'}
           </Button>
         </DialogFooter>
       </DialogContent>

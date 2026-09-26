@@ -18,6 +18,8 @@ export interface ParentCitation {
   outcome: string | null
   commitments: string | null
   follow_up_date: string | null
+  registered_by?: number
+  teacher_name?: string
   student?: { id: number; first_name: string; last_name: string }
   parent?: { id: number; first_name: string; last_name: string; phone: string; relationship: string }
 }

@@ -1,13 +1,16 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { behaviorApi } from '@/services/api/behavior'
 import { useActiveCourseGroup } from '@/hooks/useActiveCourseGroup'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { useAuthStore } from '@/store/authStore'
 import {
   BEHAVIOR_CATEGORY_LABELS,
   BEHAVIOR_TYPE_BADGE,
@@ -25,6 +28,24 @@ export function Behavior() {
   const [categoryFilter, setCategoryFilter] = useState<BehaviorCategory | ''>('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [followUp, setFollowUp] = useState<BehaviorAnnotation | null>(null)
+  const [editing, setEditing] = useState<BehaviorAnnotation | null>(null)
+  const queryClient = useQueryClient()
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const { data: institution } = useCurrentInstitution()
+  // Igual que el backend: editar o borrar, solo el autor o un admin.
+  const canEdit = (annotation: BehaviorAnnotation) =>
+    annotation.registered_by === currentUserId || institution?.my_role === 'admin'
+
+  const markContacted = async (annotation: BehaviorAnnotation) => {
+    try {
+      await behaviorApi.markContacted(annotation.id)
+      toast.success('Acudiente marcado como contactado.')
+      queryClient.invalidateQueries({ queryKey: ['behavior', groupId] })
+      queryClient.invalidateQueries({ queryKey: ['student-profile', annotation.student_id] })
+    } catch {
+      toast.error('No pudimos marcar el contacto.')
+    }
+  }
 
   const { data: annotations, isLoading } = useQuery({
     queryKey: ['behavior', groupId, typeFilter, categoryFilter],
@@ -105,7 +126,19 @@ export function Behavior() {
                     Ver perfil →
                   </Link>
                 </span>
-                <Badge variant={BEHAVIOR_TYPE_BADGE[annotation.type]}>{BEHAVIOR_TYPE_LABELS[annotation.type]}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant={BEHAVIOR_TYPE_BADGE[annotation.type]}>{BEHAVIOR_TYPE_LABELS[annotation.type]}</Badge>
+                  {canEdit(annotation) && (
+                    <button
+                      type="button"
+                      className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label="Editar anotación"
+                      onClick={() => setEditing(annotation)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 {BEHAVIOR_CATEGORY_LABELS[annotation.category]} · {annotation.date.slice(0, 10)}
@@ -114,12 +147,28 @@ export function Behavior() {
               <p className="font-medium">{annotation.title}</p>
               <p className="text-sm text-muted-foreground">{annotation.description}</p>
               {annotation.requires_parent_contact && !annotation.parent_contacted && (
-                <Button size="sm" variant="outline" className="mt-1 w-fit" onClick={() => setFollowUp(annotation)}>
-                  📞 Crear citación
-                </Button>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  {annotation.citations_count ? (
+                    <span className="text-xs text-muted-foreground">
+                      📅 Citación creada — se marca como contactado al notificarla o realizarla.
+                    </span>
+                  ) : (
+                    <Button size="sm" variant="outline" className="w-fit" onClick={() => setFollowUp(annotation)}>
+                      📞 Crear citación
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" className="w-fit" onClick={() => markContacted(annotation)}>
+                    ✅ Ya lo contacté
+                  </Button>
+                </div>
               )}
               {annotation.parent_contacted && (
-                <p className="text-xs text-success">✅ Padre contactado</p>
+                <p className="text-xs text-success">
+                  ✅ Acudiente contactado{annotation.parent_contact_date && ` el ${annotation.parent_contact_date.slice(0, 10)}`}
+                </p>
+              )}
+              {annotation.action_taken && (
+                <p className="text-xs text-muted-foreground">Acción tomada: {annotation.action_taken}</p>
               )}
             </CardContent>
           </Card>
@@ -136,6 +185,16 @@ export function Behavior() {
           }
         }}
       />
+
+      {editing && (
+        <NewAnnotationDialog
+          key={editing.id}
+          open
+          onOpenChange={(open) => !open && setEditing(null)}
+          groupId={groupId}
+          annotation={editing}
+        />
+      )}
 
       {followUp && (
         <NewCitationDialog

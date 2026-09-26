@@ -24,8 +24,15 @@ export function useSaveGrade(groupSubjectId: number, periodId: number) {
   const invalidateTimeout = useRef<ReturnType<typeof setTimeout>>()
 
   return useMutation({
-    mutationFn: (vars: { studentId: number; columnId: number; score: number | null }) =>
-      gradesApi.save({ student_id: vars.studentId, grade_column_id: vars.columnId, score: vars.score }),
+    // Con convención, `score` es el valor de la convención (para el cambio optimista);
+    // el servidor lo recalcula de todas formas a partir de convention_id.
+    mutationFn: (vars: { studentId: number; columnId: number; score: number | null; conventionId?: number | null }) =>
+      gradesApi.save({
+        student_id: vars.studentId,
+        grade_column_id: vars.columnId,
+        score: vars.score,
+        convention_id: vars.conventionId ?? null,
+      }),
 
     onMutate: async (vars) => {
       await queryClient.cancelQueries({ queryKey })
@@ -43,6 +50,7 @@ export function useSaveGrade(groupSubjectId: number, periodId: number) {
           group_subject_id: groupSubjectId,
           period_id: periodId,
           score: vars.score,
+          convention_id: vars.conventionId ?? null,
           is_excused: existing?.is_excused ?? false,
           excused_reason: existing?.excused_reason ?? null,
           notes: existing?.notes ?? null,

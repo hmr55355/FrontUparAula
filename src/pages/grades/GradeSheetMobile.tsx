@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -7,7 +8,9 @@ import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
-import type { GradeColumn, GradeSheetResponse } from '@/types/grades'
+import { ConventionChips } from '@/pages/grades/conventions'
+import { gradeCellDisplay, inputFromConvention, parseGradeInput, type GradeInput } from '@/pages/grades/conventionHelpers'
+import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
 
 type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
 
@@ -37,7 +40,7 @@ export function GradeSheetMobile({
         groupSubjectId={groupSubjectId}
         periodId={periodId}
         onBack={() => setView({ mode: 'list' })}
-        onSave={(columnId, score) => saveGrade.mutate({ studentId: student.id, columnId, score })}
+        onSave={(columnId, input) => saveGrade.mutate({ studentId: student.id, columnId, ...input })}
       />
     )
   }
@@ -95,7 +98,7 @@ export function GradeSheetMobile({
         sheet={sheet}
         columnId={view.columnId}
         onBack={() => setView({ mode: 'list' })}
-        onSave={(studentId, score) => saveGrade.mutateAsync({ studentId, columnId: view.columnId, score })}
+        onSave={(studentId, input) => saveGrade.mutateAsync({ studentId, columnId: view.columnId, ...input })}
       />
     )
   }
@@ -146,7 +149,7 @@ function StudentDetail({
   groupSubjectId: number
   periodId: number
   onBack: () => void
-  onSave: (columnId: number, score: number | null) => void
+  onSave: (columnId: number, input: GradeInput) => void
 }) {
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
   const periodFinalRow = sheet.period_finals[studentId]
@@ -174,9 +177,11 @@ function StudentDetail({
                     key={column.id}
                     label={column.name}
                     score={numeric}
+                    grade={grade}
+                    conventions={sheet.conventions}
                     minPassing={sheet.min_passing_grade}
                     readOnly={column.column_type !== 'manual'}
-                    onSave={(value) => onSave(column.id, value)}
+                    onSave={(input) => onSave(column.id, input)}
                   />
                 )
               })}
@@ -250,6 +255,8 @@ function StudentDetail({
 function MobileGradeRow({
   label,
   score,
+  grade,
+  conventions = [],
   minPassing,
   readOnly,
   bold,
@@ -259,58 +266,86 @@ function MobileGradeRow({
 }: {
   label: string
   score: number | null
+  /** Solo en columnas de actividad: trae la convención con que se puso la nota. */
+  grade?: Grade
+  conventions?: GradeConvention[]
   minPassing: number
   readOnly?: boolean
   bold?: boolean
-  onSave?: (value: number | null) => void
+  onSave?: (input: GradeInput) => void
   onAdjust?: () => void
   adjusted?: boolean
 }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(score === null ? '' : String(score))
-  const { background, text } = getGradeColor(score, minPassing)
+  const display = gradeCellDisplay(grade ?? { score, convention_id: null }, conventions, minPassing)
+  const [draft, setDraft] = useState(display.convention ? '' : score === null ? '' : String(score))
+  const { background, text } = display.colors
+
+  const commit = () => {
+    setEditing(false)
+    const parsed = parseGradeInput(draft, conventions)
+    if (parsed.kind === 'invalid') {
+      toast.error(`"${draft.trim()}" no es una nota válida.`)
+      return
+    }
+    if (parsed.kind === 'convention') {
+      onSave?.(inputFromConvention(parsed.convention))
+      return
+    }
+    const value = parsed.kind === 'score' ? parsed.value : null
+    // Si la celda tiene convención y el campo quedó vacío, no se toca: para quitarla se escribe una nota.
+    if (display.convention && value === null) return
+    if (value !== score || display.convention) onSave?.({ score: value, conventionId: null })
+  }
 
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className={`text-sm ${bold ? 'font-semibold' : ''}`}>
-        {label}
-        {adjusted && <span className="ml-1 text-xs">✎</span>}
-      </span>
-      {editing ? (
-        <input
-          autoFocus
-          type="number"
-          inputMode="decimal"
-          step="0.1"
-          className="w-20 rounded-md bg-background px-2 py-1 text-center text-foreground ring-2 ring-inset ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => {
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className={`text-sm ${bold ? 'font-semibold' : ''}`}>
+          {label}
+          {adjusted && <span className="ml-1 text-xs">✎</span>}
+        </span>
+        {editing ? (
+          <input
+            autoFocus
+            type="text"
+            inputMode="decimal"
+            placeholder={display.convention?.code}
+            className="w-20 rounded-md bg-background px-2 py-1 text-center text-foreground ring-2 ring-inset ring-primary"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') setEditing(false)
+            }}
+          />
+        ) : (
+          <button
+            disabled={readOnly && !onAdjust}
+            onClick={() => {
+              if (onAdjust) {
+                onAdjust()
+                return
+              }
+              setDraft(display.convention ? '' : score === null ? '' : String(score))
+              setEditing(true)
+            }}
+            className="w-20 rounded-md px-2 py-1 text-center font-medium"
+            style={{ backgroundColor: background, color: text }}
+          >
+            {display.content}
+          </button>
+        )}
+      </div>
+      {editing && (
+        <ConventionChips
+          conventions={conventions}
+          onPick={(c) => {
             setEditing(false)
-            const value = draft.trim() === '' ? null : Number(draft)
-            onSave?.(Number.isNaN(value as number) ? null : value)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') setEditing(false)
+            onSave?.(inputFromConvention(c))
           }}
         />
-      ) : (
-        <button
-          disabled={readOnly && !onAdjust}
-          onClick={() => {
-            if (onAdjust) {
-              onAdjust()
-              return
-            }
-            setDraft(score === null ? '' : String(score))
-            setEditing(true)
-          }}
-          className="w-20 rounded-md px-2 py-1 text-center font-medium"
-          style={{ backgroundColor: background, color: text }}
-        >
-          {score !== null ? score.toFixed(1) : '—'}
-        </button>
       )}
     </div>
   )
@@ -325,7 +360,7 @@ function QuickGradeMode({
   sheet: GradeSheetResponse
   columnId: number
   onBack: () => void
-  onSave: (studentId: number, score: number | null) => Promise<unknown>
+  onSave: (studentId: number, input: GradeInput) => Promise<unknown>
 }) {
   const [index, setIndex] = useState(0)
   const [draft, setDraft] = useState('')
@@ -350,12 +385,21 @@ function QuickGradeMode({
 
   if (!student || !column) return null
 
-  const commitAndAdvance = async () => {
-    const trimmed = draft.trim()
-    if (trimmed !== '') {
+  const commitAndAdvance = async (input?: GradeInput) => {
+    let toSave = input
+    if (!toSave) {
+      const parsed = parseGradeInput(draft, sheet.conventions)
+      if (parsed.kind === 'invalid') {
+        toast.error(`"${draft.trim()}" no es una nota válida.`)
+        return
+      }
+      if (parsed.kind === 'convention') toSave = inputFromConvention(parsed.convention)
+      if (parsed.kind === 'score') toSave = { score: parsed.value, conventionId: null }
+    }
+    if (toSave) {
       setSaving(true)
       try {
-        await onSave(student.id, Number(trimmed))
+        await onSave(student.id, toSave)
         setSavedCount((c) => c + 1)
       } catch {
         // useSaveGrade ya revierte la caché y muestra un toast de error — nos
@@ -393,17 +437,26 @@ function QuickGradeMode({
           </p>
           <input
             autoFocus
-            type="number"
+            type="text"
             inputMode="decimal"
-            step="0.1"
             placeholder="0.0"
-            className="w-32 rounded-md border-2 border-primary px-3 py-3 text-center text-2xl [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            className="w-32 rounded-md border-2 border-primary px-3 py-3 text-center text-2xl"
             value={draft}
             disabled={saving}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && commitAndAdvance()}
           />
-          <Button size="lg" className="w-full" onClick={commitAndAdvance} disabled={saving}>
+          {sheet.conventions.length > 0 && (
+            <div className="flex flex-col items-center gap-1">
+              <p className="text-xs text-muted-foreground">o marca una convención:</p>
+              <ConventionChips
+                conventions={sheet.conventions}
+                disabled={saving}
+                onPick={(c) => commitAndAdvance(inputFromConvention(c))}
+              />
+            </div>
+          )}
+          <Button size="lg" className="w-full" onClick={() => commitAndAdvance()} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar y siguiente'} <ChevronRight className="h-4 w-4" />
           </Button>
         </CardContent>

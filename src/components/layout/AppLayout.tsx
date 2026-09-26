@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { Menu, Moon, Sun, UserCircle, X, ChevronDown } from 'lucide-react'
+import { Menu, Moon, Sun, UserCircle, X, ChevronDown, Clock } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -12,8 +12,7 @@ import { useViewModeStore } from '@/store/viewModeStore'
 import { useEnsureActiveCourse } from '@/hooks/useEnsureActiveCourse'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { useEffectiveRole } from '@/hooks/useEffectiveRole'
-import { groupSubjectsApi } from '@/services/api/groupSubjects'
-import { useQuery } from '@tanstack/react-query'
+import { useActiveShift } from '@/hooks/useActiveShift'
 import { cn } from '@/lib/utils'
 import { navItemsFor, type NavItem } from '@/config/navItems'
 import type { GroupSubject } from '@/types'
@@ -32,11 +31,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // El curso activo es contexto del aula: en la vista Administrador no aplica.
   const showCourseSwitcher = effectiveRole !== 'admin'
 
-  const { data: courses } = useQuery({
-    queryKey: ['group-subjects', 'mine'],
-    queryFn: groupSubjectsApi.myCourses,
-  })
-  useEnsureActiveCourse(courses)
+  // Solo los cursos de la jornada activa (mañana, tarde, sábado…); si el docente
+  // tiene una sola jornada son todos.
+  const shift = useActiveShift()
+  const courses = shift.coursesInShift
+  useEnsureActiveCourse(shift)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', isDark)
@@ -65,9 +64,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
           UparAula
         </NavLink>
 
-        <div className="relative ml-2 hidden flex-1 sm:block">
+        <div className="relative ml-2 hidden flex-1 items-center gap-2 sm:flex">
           {showCourseSwitcher ? (
-            <CourseSwitcher courses={courses} />
+            <>
+              <ShiftSwitcher />
+              <CourseSwitcher courses={courses} />
+            </>
           ) : (
             <span className="text-sm font-medium text-muted-foreground">Vista Administrador</span>
           )}
@@ -106,9 +108,12 @@ export function AppLayout({ children }: { children: ReactNode }) {
               </div>
 
               {showCourseSwitcher && (
-                <div className="relative mb-3 sm:hidden">
-                  <p className="mb-1 px-1 text-xs font-medium uppercase text-muted-foreground">Curso activo</p>
-                  <CourseSwitcher courses={courses} fullWidth />
+                <div className="relative mb-3 flex flex-col gap-2 sm:hidden">
+                  <ShiftSwitcher fullWidth label />
+                  <div>
+                    <p className="mb-1 px-1 text-xs font-medium uppercase text-muted-foreground">Curso activo</p>
+                    <CourseSwitcher courses={courses} fullWidth />
+                  </div>
                 </div>
               )}
 
@@ -183,6 +188,69 @@ function CourseSwitcher({ courses, fullWidth = false }: { courses?: GroupSubject
             <p className="px-3 py-2 text-sm text-muted-foreground">Aún no tienes cursos asignados.</p>
           )}
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Jornada activa del docente. Solo aparece si dicta en más de una jornada. La
+ * marcada "según tu horario" es la que corresponde al día y la hora.
+ */
+function ShiftSwitcher({ fullWidth = false, label = false }: { fullWidth?: boolean; label?: boolean }) {
+  const { teacherShifts, activeShift, autoShiftId, isManual, setShift } = useActiveShift()
+  const [open, setOpen] = useState(false)
+
+  if (teacherShifts.length <= 1) return null
+
+  return (
+    <div className={cn('relative', fullWidth ? 'w-full' : 'shrink-0')}>
+      {label && <p className="mb-1 px-1 text-xs font-medium uppercase text-muted-foreground">Jornada</p>}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          'flex items-center gap-2 rounded-md border px-3 py-2 text-sm hover:bg-muted',
+          fullWidth && 'w-full justify-between',
+          isManual && 'border-primary/50'
+        )}
+        title={isManual ? 'Elegiste esta jornada; vuelve sola a la de tu horario cuando cambie la hora' : 'Según tu horario'}
+      >
+        <span className="flex items-center gap-1.5 truncate">
+          <Clock className="h-4 w-4 shrink-0" />
+          {activeShift?.name ?? 'Jornada'}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0" />
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className={cn(
+              'absolute left-0 top-full z-50 mt-1 rounded-md border bg-popover p-1 shadow-lg',
+              fullWidth ? 'w-full' : 'w-56'
+            )}
+          >
+            {teacherShifts.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  setShift(s.id)
+                  setOpen(false)
+                }}
+                className="flex w-full items-center justify-between gap-2 rounded px-3 py-2 text-left text-sm hover:bg-muted"
+              >
+                <span>
+                  {s.name}
+                  {s.id === autoShiftId && (
+                    <span className="ml-1 text-xs text-muted-foreground">(según tu horario)</span>
+                  )}
+                </span>
+                {activeShift?.id === s.id && <span>✓</span>}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

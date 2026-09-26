@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Pencil, Plus } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +17,9 @@ import {
 } from '@/types/citations'
 import type { CitationStatus, ParentCitation } from '@/types/citations'
 import { NewCitationDialog } from '@/pages/citations/NewCitationDialog'
+import { formatWallClock } from '@/utils/dateHelpers'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { useAuthStore } from '@/store/authStore'
 
 export function Citations() {
   const { course, activeCourse } = useActiveCourseGroup()
@@ -26,6 +29,12 @@ export function Citations() {
   const [statusFilter, setStatusFilter] = useState<CitationStatus | ''>('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [completing, setCompleting] = useState<ParentCitation | null>(null)
+  const [editing, setEditing] = useState<ParentCitation | null>(null)
+  const currentUserId = useAuthStore((s) => s.user?.id)
+  const { data: institution } = useCurrentInstitution()
+  // Igual que el backend: editar o borrar, solo el autor o un admin.
+  const canEdit = (citation: ParentCitation) =>
+    citation.registered_by === currentUserId || institution?.my_role === 'admin'
 
   const { data: citations, isLoading } = useQuery({
     queryKey: ['citations', groupId, statusFilter],
@@ -38,6 +47,8 @@ export function Citations() {
       await citationsApi.updateStatus(citation.id, { status });
       toast.success('Estado actualizado.')
       queryClient.invalidateQueries({ queryKey: ['citations', groupId] })
+      // Notificar/confirmar una citación marca como contactado al acudiente de su anotación.
+      queryClient.invalidateQueries({ queryKey: ['behavior', groupId] })
     } catch {
       toast.error('No pudimos actualizar el estado.')
     }
@@ -98,11 +109,24 @@ export function Citations() {
                     Ver perfil →
                   </Link>
                 </span>
-                <Badge variant={CITATION_STATUS_BADGE[citation.status]}>{CITATION_STATUS_LABELS[citation.status]}</Badge>
+                <div className="flex items-center gap-1">
+                  <Badge variant={CITATION_STATUS_BADGE[citation.status]}>{CITATION_STATUS_LABELS[citation.status]}</Badge>
+                  {canEdit(citation) && (
+                    <button
+                      type="button"
+                      className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label="Editar citación"
+                      onClick={() => setEditing(citation)}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="text-sm text-muted-foreground">
                 {CITATION_TYPE_LABELS[citation.citation_type]}
-                {citation.scheduled_date && ` · ${new Date(citation.scheduled_date).toLocaleString('es-CO')}`}
+                {citation.scheduled_date && ` · ${formatWallClock(citation.scheduled_date)}`}
+                {citation.location && ` · ${citation.location}`}
               </p>
               <p className="text-sm">{citation.reason}</p>
 
@@ -113,6 +137,7 @@ export function Citations() {
                   onSaved={() => {
                     setCompleting(null)
                     queryClient.invalidateQueries({ queryKey: ['citations', groupId] })
+                    queryClient.invalidateQueries({ queryKey: ['behavior', groupId] })
                   }}
                 />
               ) : (
@@ -139,6 +164,14 @@ export function Citations() {
       </div>
 
       <NewCitationDialog open={dialogOpen} onOpenChange={setDialogOpen} groupId={groupId} />
+      {editing && (
+        <NewCitationDialog
+          open
+          onOpenChange={(open) => !open && setEditing(null)}
+          groupId={groupId}
+          citation={editing}
+        />
+      )}
     </div>
   )
 }

@@ -12,6 +12,7 @@ import { classPlansApi } from '@/services/api/classPlans'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
 import { useActivePeriod } from '@/hooks/useActivePeriod'
 import { useEffectiveRole } from '@/hooks/useEffectiveRole'
+import { useActiveShift } from '@/hooks/useActiveShift'
 import { PreviousClassPlanDialog } from '@/pages/plans/PreviousClassPlanDialog'
 import { navItemsFor } from '@/config/navItems'
 import { AdminDashboard } from '@/pages/AdminDashboard'
@@ -28,10 +29,13 @@ export function Dashboard() {
 }
 
 function TeacherDashboard() {
-  const { data: courses, isLoading } = useQuery({
+  const { data: allCourses, isLoading } = useQuery({
     queryKey: ['group-subjects', 'mine'],
     queryFn: groupSubjectsApi.myCourses,
   })
+  // Solo los de la jornada activa; con una sola jornada son todos.
+  const { coursesInShift, teacherShifts, activeShift } = useActiveShift()
+  const courses = coursesInShift ?? allCourses
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -56,7 +60,12 @@ function TeacherDashboard() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-lg font-semibold">Mis cursos</h2>
+        <h2 className="mb-3 text-lg font-semibold">
+          Mis cursos
+          {teacherShifts.length > 1 && activeShift && (
+            <span className="ml-2 text-sm font-normal text-muted-foreground">· Jornada {activeShift.name}</span>
+          )}
+        </h2>
         {isLoading && <p className="text-sm text-muted-foreground">Cargando cursos...</p>}
         {!isLoading && (!courses || courses.length === 0) && (
           <Card>

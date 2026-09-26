@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
+import axios from 'axios'
+import { Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,34 +15,66 @@ import { BEHAVIOR_CATEGORY_LABELS, BEHAVIOR_TYPE_LABELS } from '@/types/behavior
 import type { BehaviorAnnotation, BehaviorCategory, BehaviorType } from '@/types/behavior'
 import { localDateString } from '@/utils/dateHelpers'
 
+/**
+ * Crear o editar una anotación (con `annotation`, edita y permite eliminar; el
+ * estudiante no cambia). El backend solo deja editar al autor o a un admin.
+ */
 export function NewAnnotationDialog({
   open,
   onOpenChange,
   groupId,
   onCreated,
+  annotation,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupId: number
-  onCreated: (annotation: BehaviorAnnotation) => void
+  onCreated?: (annotation: BehaviorAnnotation) => void
+  annotation?: BehaviorAnnotation
 }) {
   const queryClient = useQueryClient()
+  const isEdit = !!annotation
   const { data: students } = useQuery({
     queryKey: ['group-students', groupId],
     queryFn: () => groupsApi.students(groupId),
   })
 
-  const [studentId, setStudentId] = useState<number | ''>('')
-  const [type, setType] = useState<BehaviorType>('positiva')
-  const [category, setCategory] = useState<BehaviorCategory>('convivencia')
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [actionTaken, setActionTaken] = useState('')
-  const [requiresContact, setRequiresContact] = useState(false)
+  const [studentId, setStudentId] = useState<number | ''>(annotation?.student_id ?? '')
+  const [date, setDate] = useState(annotation?.date.slice(0, 10) ?? localDateString())
+  const [type, setType] = useState<BehaviorType>(annotation?.type ?? 'positiva')
+  const [category, setCategory] = useState<BehaviorCategory>(annotation?.category ?? 'convivencia')
+  const [title, setTitle] = useState(annotation?.title ?? '')
+  const [description, setDescription] = useState(annotation?.description ?? '')
+  const [actionTaken, setActionTaken] = useState(annotation?.action_taken ?? '')
+  const [requiresContact, setRequiresContact] = useState(annotation?.requires_parent_contact ?? false)
   const [saving, setSaving] = useState(false)
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['behavior', groupId] })
+    if (studentId) queryClient.invalidateQueries({ queryKey: ['student-profile', studentId] })
+  }
+
+  const errorText = (error: unknown, fallback: string) =>
+    (axios.isAxiosError(error) && error.response?.data?.message) || fallback
+
+  const remove = async () => {
+    if (!annotation || !window.confirm(`¿Eliminar la anotación "${annotation.title}"?`)) return
+    setSaving(true)
+    try {
+      await behaviorApi.remove(annotation.id)
+      toast.success('Anotación eliminada.')
+      invalidate()
+      onOpenChange(false)
+    } catch (error) {
+      toast.error(errorText(error, 'No pudimos eliminar la anotación.'))
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const reset = () => {
     setStudentId('')
+    setDate(localDateString())
     setType('positiva')
     setCategory('convivencia')
     setTitle('')
@@ -56,11 +90,32 @@ export function NewAnnotationDialog({
     }
 
     setSaving(true)
+    if (annotation) {
+      try {
+        await behaviorApi.update(annotation.id, {
+          date,
+          type,
+          category,
+          title,
+          description,
+          action_taken: actionTaken || undefined,
+          requires_parent_contact: requiresContact,
+        })
+        toast.success('Anotación actualizada.')
+        invalidate()
+        onOpenChange(false)
+      } catch (error) {
+        toast.error(errorText(error, 'No pudimos actualizar la anotación.'))
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
     try {
-      const annotation = await behaviorApi.create({
+      const created = await behaviorApi.create({
         student_id: studentId,
         group_id: groupId,
-        date: localDateString(),
+        date,
         type,
         category,
         title,
@@ -69,10 +124,10 @@ export function NewAnnotationDialog({
         requires_parent_contact: requiresContact,
       })
       toast.success('Anotación guardada.')
-      queryClient.invalidateQueries({ queryKey: ['behavior', groupId] })
+      invalidate()
       onOpenChange(false)
       reset()
-      onCreated(annotation)
+      onCreated?.(created)
     } catch {
       toast.error('No pudimos guardar la anotación.')
     } finally {
@@ -84,7 +139,7 @@ export function NewAnnotationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Nueva anotación</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar anotación' : 'Nueva anotación'}</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
@@ -94,8 +149,14 @@ export function NewAnnotationDialog({
               value={studentId}
               onChange={setStudentId}
               placeholder="Selecciona un estudiante"
+              disabled={isEdit}
               options={(students ?? []).map((s) => ({ id: s.id, label: `${s.last_name} ${s.first_name}` }))}
             />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Fecha</Label>
+            <Input type="date" value={date} max={localDateString()} onChange={(e) => setDate(e.target.value)} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -154,9 +215,16 @@ export function NewAnnotationDialog({
           </label>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {isEdit ? (
+            <Button variant="ghost" className="text-destructive" onClick={remove} disabled={saving}>
+              <Trash2 className="h-4 w-4" /> Eliminar
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button onClick={save} disabled={saving}>
-            {saving ? 'Guardando...' : 'Guardar anotación'}
+            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Guardar anotación'}
           </Button>
         </DialogFooter>
       </DialogContent>

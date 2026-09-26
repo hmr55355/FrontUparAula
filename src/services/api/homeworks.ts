@@ -12,6 +12,7 @@ export interface HomeworkPayload {
   is_graded?: boolean
   grade_section_id?: number
   weight?: number
+  notes?: string
 }
 
 export interface DeliveryPayload {
