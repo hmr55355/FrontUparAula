@@ -7,6 +7,7 @@ import { academicStructureApi } from '@/services/api/academicStructure'
 import { shiftsQueryKey } from '@/pages/institution/ShiftsPanel'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { useShiftStore } from '@/store/shiftStore'
+import { localDateString } from '@/utils/dateHelpers'
 import type { GroupSubject, Shift } from '@/types'
 import type { ClassScheduleBlock } from '@/types/schedule'
 
@@ -107,8 +108,20 @@ export function useActiveShift() {
     [teacherShifts, entries, shiftOfCourse, now]
   )
 
+  const today = localDateString(now)
   const manualApplies =
-    !!manual && manual.autoShiftId === autoShiftId && teacherShifts.some((s) => s.id === manual.shiftId)
+    !!manual &&
+    manual.day === today &&
+    manual.autoShiftId === autoShiftId &&
+    teacherShifts.some((s) => s.id === manual.shiftId)
+
+  // Elección manual vencida (cambió la jornada automática o el día): se borra, para
+  // que no reviva cuando la automática vuelva a coincidir. Solo con los datos
+  // cargados; mientras cargan, la automática es null y no significa nada.
+  const dataReady = teacherShifts.length > 0 && entries !== undefined
+  useEffect(() => {
+    if (manual && dataReady && !manualApplies) clearManualShift()
+  }, [manual, dataReady, manualApplies, clearManualShift])
   const activeShiftId = manual && manualApplies ? manual.shiftId : autoShiftId
   const activeShift = teacherShifts.find((s) => s.id === activeShiftId) ?? null
 

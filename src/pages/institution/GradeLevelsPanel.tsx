@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { InlineNameEdit } from '@/components/ui/inline-name-edit'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { academicStructureApi, STANDARD_GRADE_LEVELS } from '@/services/api/academicStructure'
 
@@ -54,6 +55,21 @@ export function GradeLevelsPanel({ institutionId }: { institutionId: number }) {
       invalidate()
     },
     onError: (error) => toast.error(errorMessage(error, 'No pudimos eliminar el grado.')),
+  })
+
+  const rename = useMutation({
+    mutationFn: (vars: { id: number; name: string }) => academicStructureApi.updateGradeLevel(vars.id, { name: vars.name }),
+    onSuccess: () => {
+      toast.success('Grado renombrado.')
+      queryClient.invalidateQueries({ queryKey: gradeLevelsQueryKey(institutionId) })
+      queryClient.invalidateQueries({ queryKey: ['groups', institutionId] })
+      queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'assignment-grid'] })
+    },
+    onError: (error) =>
+      toast.error(
+        (axios.isAxiosError(error) && (error.response?.data?.errors?.name?.[0] || error.response?.data?.message)) ||
+          'No pudimos renombrar el grado.'
+      ),
   })
 
   const existingNames = new Set(gradeLevels?.map((g) => g.name))
@@ -133,7 +149,13 @@ export function GradeLevelsPanel({ institutionId }: { institutionId: number }) {
             )}
             {gradeLevels?.map((g) => (
               <TableRow key={g.id}>
-                <TableCell className="font-medium">{g.name}</TableCell>
+                <TableCell className="font-medium">
+                  <InlineNameEdit
+                    value={g.name}
+                    disabled={rename.isPending}
+                    onSave={(name) => rename.mutate({ id: g.id, name })}
+                  />
+                </TableCell>
                 <TableCell>{g.groups_count ?? 0}</TableCell>
                 <TableCell>{g.subject_ids?.length ?? 0}</TableCell>
                 <TableCell className="text-right">

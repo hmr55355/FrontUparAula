@@ -18,6 +18,8 @@ import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import { NewObservationDialog } from '@/pages/student/NewObservationDialog'
 import { NewCitationDialog } from '@/pages/citations/NewCitationDialog'
 import { ParentDialog } from '@/pages/student/ParentDialog'
+import { StudentFormDialog } from '@/pages/student/StudentFormDialog'
+import { useQueryClient } from '@tanstack/react-query'
 import { RELATIONSHIP_LABELS } from '@/types/parents'
 import type { ParentGuardian } from '@/types/parents'
 
@@ -32,6 +34,10 @@ export function StudentProfile() {
   const [citationDialogOpen, setCitationDialogOpen] = useState(false)
   // null = cerrado, 'new' = agregar, objeto = editar ese acudiente.
   const [parentDialog, setParentDialog] = useState<ParentGuardian | 'new' | null>(null)
+  const [editingStudent, setEditingStudent] = useState(false)
+  // Editar datos personales es de administradores (el backend lo exige), en cualquier vista.
+  const isAdmin = institution?.my_role === 'admin'
+  const queryClient = useQueryClient()
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ['student-profile', studentId],
@@ -62,9 +68,32 @@ export function StudentProfile() {
             <Badge variant={student.is_active ? 'success' : 'secondary'}>
               {student.is_active ? 'Activo' : 'Retirado'}
             </Badge>
+            <dl className="mt-2 grid grid-cols-1 gap-x-6 gap-y-0.5 text-sm text-muted-foreground sm:grid-cols-2">
+              {student.birthdate && (
+                <div>
+                  Nació el {student.birthdate.slice(0, 10)} ({ageFrom(student.birthdate)} años)
+                </div>
+              )}
+              {student.phone && <div>📱 {student.phone}</div>}
+              {student.email && <div>✉️ {student.email}</div>}
+              {student.address && <div>🏠 {student.address}</div>}
+            </dl>
           </div>
+          {isAdmin && (
+            <Button size="sm" variant="outline" className="ml-auto self-start" onClick={() => setEditingStudent(true)}>
+              <Pencil className="h-4 w-4" /> Editar datos
+            </Button>
+          )}
         </CardContent>
       </Card>
+      {editingStudent && (
+        <StudentFormDialog
+          open
+          onOpenChange={setEditingStudent}
+          student={student}
+          onSaved={() => queryClient.invalidateQueries({ queryKey: ['student-profile', studentId] })}
+        />
+      )}
 
       <Tabs defaultValue="grades">
         <TabsList className="h-auto flex-wrap gap-1">
@@ -269,3 +298,13 @@ function EmptyState({ text }: { text: string }) {
     </Card>
   )
 }
+
+/** Edad cumplida a hoy, a partir de YYYY-MM-DD. */
+function ageFrom(birthdate: string): number {
+  const [y, m, d] = birthdate.slice(0, 10).split('-').map(Number)
+  const today = new Date()
+  let age = today.getFullYear() - y
+  if (today.getMonth() + 1 < m || (today.getMonth() + 1 === m && today.getDate() < d)) age--
+  return age
+}
+

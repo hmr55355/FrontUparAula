@@ -9,6 +9,9 @@ export const academicStructureApi = {
   createGradeLevel: (institutionId: number, payload: { name: string; level: number | null }) =>
     api.post<{ data: GradeLevel }>(`/institutions/${institutionId}/grade-levels`, payload).then((r) => r.data.data),
 
+  updateGradeLevel: (id: number, payload: { name?: string; level?: number | null }) =>
+    api.put<{ data: GradeLevel }>(`/grade-levels/${id}`, payload).then((r) => r.data.data),
+
   deleteGradeLevel: (id: number) => api.delete(`/grade-levels/${id}`),
 
   shifts: (institutionId: number) =>

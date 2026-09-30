@@ -87,6 +87,9 @@ Se marca `[x]` al terminar. **F** = solo frontend. **B+F** = falta también el b
 - [x] 1.7 **Copiar la configuración desde otro período** (`gradeSectionsApi.copyFromPeriod`, sin botón).
 - [x] 1.8 Peso **automático** al crear una tarea que genera nota (`weight_mode: automatic` reparte la sección por igual y recalcula).
 - [x] 1.9 **Escala de valoración institucional** (Admin → Institución → Escala de valoración): niveles con rango, equivalencia nacional (Decreto 1290/2009 art. 5 = Decreto 1075/2015 art. 2.3.3.3.3.5) y color. Colorea la planilla (`getGradeColor` → `performanceLevelFor`/`levelColors`, escala fijada en `AppLayout` con `setGradeScale`), los reportes y el boletín, que ahora muestra el desempeño en la escala nacional. La nota mínima para aprobar sale de la escala.
+- [x] 1.10 Pagos de copias: **"Marcar como no pagado"** (deshacer un pago o una exoneración por error; `status: debe` limpia monto, fecha y motivo).
+- [x] 1.11 Desde la planilla: **agregar actividades** (botón "Actividad" y "+" en cada sección; `POST /grade-columns` acepta `weight_mode`), **nuevo cobro** dentro de "Pagos de copias" (queda en el período de la planilla) y **renombrar la actividad** (nombre y encabezado) en el diálogo de "misma nota a todos"; si la columna es de una tarea, la tarea también cambia de nombre.
+- [x] 1.12 Botón para **quitar un ajuste manual** de una definitiva (hoy, una vez ajustada, el recálculo ya no la toca y no hay forma de volver al valor calculado).
 
 Al hacer la Fase 1 aparecieron (y se arreglaron) problemas del backend que la
 auditoría no veía: borrar una tarea con nota no recalculaba las definitivas;
@@ -98,30 +101,31 @@ hora de las citaciones se mostraba 5 horas antes (el backend está en UTC: usar
 `formatWallClock`/`wallClockInputValue` de `utils/dateHelpers.ts` para fechas con
 hora escritas por el docente).
 
-### Fase 2 — administración (F)
-- [ ] 2.1 **Períodos**: cambiar nombre y fechas, y **cerrar/reabrir** (`periodsApi.update`, sin uso). Con el período cerrado, la planilla queda en solo lectura con un aviso (el backend ya responde 422).
-- [ ] 2.2 **Datos de la institución**: nombre, NIT, rector, ciudad y departamento (`PUT /institutions/{id}`). La escala y la nota mínima ya no van aquí: están en la escala de valoración (1.9).
-- [ ] 2.3 **Rol de un docente** (admin ↔ docente) (`PATCH …/teachers/{userId}/role`). Revisar que no se pueda quitar el último admin.
-- [ ] 2.4 **Renombrar grados** y cambiar su número (`PUT /grade-levels/{id}`); reutilizar `InlineNameEdit`.
-- [ ] 2.5 Renombrar y eliminar **plantillas** de planilla (`PUT/DELETE /grade-templates/{id}`).
-- [ ] 2.6 **Foto de perfil** del usuario (`avatar` en `PUT /auth/profile`; el backend la acepta, Perfil no la pide).
+### Fase 2 — administración — hecha 2026-09-30
+- [x] 2.1 **Períodos**: cambiar nombre y fechas, y **cerrar/reabrir** (`periodsApi.update`, sin uso). Con el período cerrado, la planilla queda en solo lectura con un aviso (el backend ya responde 422).
+- [x] 2.2 **Datos de la institución**: nombre, NIT, rector, ciudad y departamento (`PUT /institutions/{id}`). La escala y la nota mínima ya no van aquí: están en la escala de valoración (1.9).
+- [x] 2.3 **Rol de un docente** (admin ↔ docente) (`PATCH …/teachers/{userId}/role`). Revisar que no se pueda quitar el último admin.
+- [x] 2.4 **Renombrar grados** y cambiar su número (`PUT /grade-levels/{id}`); reutilizar `InlineNameEdit`.
+- [x] 2.5 Renombrar y eliminar **plantillas** de planilla (`PUT/DELETE /grade-templates/{id}`).
+- [x] 2.6 **Foto de perfil** del usuario (`avatar` en `PUT /auth/profile`; el backend la acepta, Perfil no la pide).
 
-### Fase 3 — estudiantes y matrícula (B+F). Hoy los estudiantes solo entran por Excel
-- [ ] 3.1 **Crear y editar un estudiante** a mano: no hay endpoint. Columnas sin uso en `students`: `birthdate`, `gender`, `address`, `phone`, `photo`, `is_active`. El importador solo llena nombres, documento y correo.
-- [ ] 3.2 **Retirar o trasladar** a un estudiante de grupo: `student_groups.status`, `withdrawal_date` y `withdrawal_reason` existen sin endpoint (el observer de `student_count` ya reacciona).
-- [ ] 3.3 **Acudientes**: `document_number`, `address`, `occupation` e `is_primary_contact` existen en la base, pero el backend no los acepta.
-- [ ] 3.4 **Año escolar**: no hay endpoint para editar fechas ni para cambiar el año activo (solo se crea).
+### Fase 3 — estudiantes y matrícula (B+F) — hecha 2026-09-30
+- [x] 3.1 **Crear y editar un estudiante** a mano: no hay endpoint. Columnas sin uso en `students`: `birthdate`, `gender`, `address`, `phone`, `photo`, `is_active`. El importador solo llena nombres, documento y correo.
+- [x] 3.2 **Retirar o trasladar** a un estudiante de grupo: `student_groups.status`, `withdrawal_date` y `withdrawal_reason` existen sin endpoint (el observer de `student_count` ya reacciona).
+- [x] 3.3 **Acudientes**: `document_number`, `address`, `occupation` e `is_primary_contact` existen en la base, pero el backend no los acepta.
+- [x] 3.4 **Año escolar**: no hay endpoint para editar fechas ni para cambiar el año activo (solo se crea).
 
-### Fase 4 — seguridad de datos (B)
-- [ ] 4.1 **`DELETE /groups/{id}` sin protección**: borra en cascada, sin papelera, cursos, matrículas, notas, anotaciones, citaciones, observaciones y copias. Negarse (422) si el grupo tiene estudiantes o cursos, y agregar la prueba. Recién ahí, poner el botón "Eliminar grupo" con confirmación.
+### Fase 4 — seguridad de datos — hecha 2026-09-30
+- [x] 4.1 **`DELETE /groups/{id}` sin protección**: borra en cascada, sin papelera, cursos, matrículas, notas, anotaciones, citaciones, observaciones y copias. Negarse (422) si el grupo tiene estudiantes o cursos, y agregar la prueba. Recién ahí, poner el botón "Eliminar grupo" con confirmación.
 
 ### Fase 5 — decidir con el usuario (columnas o rutas sin uso)
 - [ ] 5.1 `grades.is_excused`/`excused_reason`: el backend lo acepta, pero se solapa con las convenciones "sin nota".
 - [ ] 5.2 Notas de voz en comportamiento, observaciones y citaciones (el backend las soporta; hoy solo están en la bitácora).
-- [ ] 5.3 `period_finals.is_promoted`: nadie lo calcula; hoy siempre es null (el boletín ya no lo usa: muestra el nivel de la escala).
+- [ ] 5.3 `period_finals.is_promoted`: lo calcula `recalculatePeriodFinal` (≥ nota mínima). El boletín ya no lo usa: muestra el nivel de la escala. Decidir si se muestra en algún lado o se quita.
 - [ ] 5.4 Tabla `documents`: modelo sin controlador ni rutas (adjuntos). Construirla o eliminarla.
 - [ ] 5.5 `parent_citations.attachments_note`, `attendance_records.notes`, `class_schedules.is_active`: columnas que el backend nunca escribe (`notification_date` sí: se llena al marcar "notificado").
 - [ ] 5.6 `sort_order` de grados y jornadas: no hay forma de reordenarlos.
+- [ ] 5.8 Foto del estudiante (`students.photo`): la columna existe, no hay subida (se puede copiar el patrón del avatar).
 - [ ] 5.7 `GET /schedule/today`: nadie lo usa.
 
 **No son huecos**: CRUD suelto de `grade-sections`/`grade-columns` y sus `reorder`

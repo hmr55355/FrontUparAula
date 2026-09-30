@@ -20,6 +20,7 @@ import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import type { GradeColumnDraft, GradeSectionDraft } from '@/types/grades'
 import type { GradeSheetResponse } from '@/types/grades'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { TemplatesDialog } from '@/pages/grades/TemplatesDialog'
 
 const COLUMN_TYPE_LABELS: Record<GradeColumnDraft['column_type'], string> = {
   manual: 'Manual',
@@ -184,17 +185,7 @@ export function ConfigureSheetDialog({
     }
   }
 
-  const saveAsTemplate = async () => {
-    const name = window.prompt('Nombre de la plantilla:')
-    if (!name) return
-    try {
-      await gradeTemplatesApi.save({ group_subject_id: groupSubjectId, period_id: periodId, name, is_shared: true })
-      toast.success('Plantilla guardada.')
-      queryClient.invalidateQueries({ queryKey: ['grade-templates', institutionId] })
-    } catch {
-      toast.error('No pudimos guardar la plantilla. Guarda primero la configuración actual.')
-    }
-  }
+  const [templatesOpen, setTemplatesOpen] = useState(false)
 
   const loadTemplate = async (templateId: number) => {
     try {
@@ -511,8 +502,8 @@ export function ConfigureSheetDialog({
 
         <DialogFooter className="flex-wrap gap-2 sm:justify-between">
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={saveAsTemplate}>
-              Guardar como plantilla
+            <Button variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>
+              Plantillas
             </Button>
             {templates && templates.length > 0 && (
               <select
@@ -536,6 +527,16 @@ export function ConfigureSheetDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      {templatesOpen && (
+        <TemplatesDialog
+          open
+          onOpenChange={setTemplatesOpen}
+          templates={templates ?? []}
+          institutionId={institutionId}
+          groupSubjectId={groupSubjectId}
+          periodId={periodId}
+        />
+      )}
     </Dialog>
   )
 }

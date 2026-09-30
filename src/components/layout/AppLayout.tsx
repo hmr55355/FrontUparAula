@@ -13,6 +13,7 @@ import { useEnsureActiveCourse } from '@/hooks/useEnsureActiveCourse'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { useEffectiveRole } from '@/hooks/useEffectiveRole'
 import { useActiveShift } from '@/hooks/useActiveShift'
+import { useAvatarUrl } from '@/hooks/useAvatarUrl'
 import { cn } from '@/lib/utils'
 import { setGradeScale } from '@/utils/gradeHelpers'
 import { navItemsFor, type NavItem } from '@/config/navItems'
@@ -30,6 +31,7 @@ export function AppLayout({ children }: { children: ReactNode }) {
   // misma pasada y ya leen la escala al colorear notas.
   setGradeScale(institution?.performance_levels)
   const effectiveRole = useEffectiveRole()
+  const avatarUrl = useAvatarUrl()
   const isRealAdmin = institution?.my_role === 'admin'
   const visibleNavItems = navItemsFor(effectiveRole)
   // El curso activo es contexto del aula: en la vista Administrador no aplica.
@@ -85,7 +87,11 @@ export function AppLayout({ children }: { children: ReactNode }) {
           </Button>
           <NotificationBell />
           <NavLink to="/profile" className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-muted">
-            <UserCircle className="h-6 w-6" />
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full border object-cover" />
+            ) : (
+              <UserCircle className="h-6 w-6" />
+            )}
             <span className="hidden text-sm font-medium sm:inline">{user?.name}</span>
           </NavLink>
         </div>

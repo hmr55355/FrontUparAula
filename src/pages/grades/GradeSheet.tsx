@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
-import { CalendarCheck, Copy, FileSpreadsheet, RefreshCw, Settings, Tags } from 'lucide-react'
+import { CalendarCheck, Copy, FileSpreadsheet, Plus, RefreshCw, Settings, Tags } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,6 +19,7 @@ import { TakeAttendanceDialog } from '@/pages/grades/TakeAttendanceDialog'
 import { CopyPaymentsDialog } from '@/pages/grades/CopyPaymentsDialog'
 import { GradeExcelDialog } from '@/pages/grades/GradeExcelDialog'
 import { ConventionsDialog } from '@/pages/grades/ConventionsDialog'
+import { AddActivityDialog } from '@/pages/grades/AddActivityDialog'
 import { ConventionsLegend, PerformanceScaleLegend } from '@/pages/grades/conventions'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
@@ -35,6 +36,8 @@ export function GradeSheet() {
   const [copiesOpen, setCopiesOpen] = useState(false)
   const [excelOpen, setExcelOpen] = useState(false)
   const [conventionsOpen, setConventionsOpen] = useState(false)
+  // null = cerrado; { sectionId } = abierto (con la sección elegida si vino del "+" de una sección).
+  const [addActivity, setAddActivity] = useState<{ sectionId?: number } | null>(null)
   const { data: institution } = useCurrentInstitution()
 
   const { data: courses } = useQuery({ queryKey: ['group-subjects', 'mine'], queryFn: groupSubjectsApi.myCourses })
@@ -76,6 +79,9 @@ export function GradeSheet() {
       if (active) navigate(`/grades/${target.id}/${active.id}`)
     })
   }, [activeCourseId, gsId, pId, courses, course?.academic_year_id, navigate])
+
+  // Período cerrado: el backend rechaza cualquier cambio de notas; la planilla queda en solo lectura.
+  const isClosed = !!periods?.find((p) => p.id === pId)?.is_closed
 
   const recalculate = async () => {
     try {
@@ -123,20 +129,30 @@ export function GradeSheet() {
           <Button variant="outline" size="sm" onClick={() => setCopiesOpen(true)}>
             <Copy className="h-4 w-4" /> Pagos de copias
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setExcelOpen(true)} disabled={sheet.sections.length === 0}>
+          <Button variant="outline" size="sm" onClick={() => setExcelOpen(true)} disabled={sheet.sections.length === 0 || isClosed}>
             <FileSpreadsheet className="h-4 w-4" /> Notas desde Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setAddActivity({})} disabled={sheet.sections.length === 0 || isClosed}>
+            <Plus className="h-4 w-4" /> Actividad
           </Button>
           <Button variant="outline" size="sm" onClick={() => setConventionsOpen(true)}>
             <Tags className="h-4 w-4" /> Convenciones
           </Button>
-          <Button variant="outline" size="sm" onClick={recalculate}>
+          <Button variant="outline" size="sm" onClick={recalculate} disabled={isClosed}>
             <RefreshCw className="h-4 w-4" /> Calcular definitivas
           </Button>
-          <Button size="sm" onClick={() => setConfigureOpen(true)}>
+          <Button size="sm" onClick={() => setConfigureOpen(true)} disabled={isClosed}>
             <Settings className="h-4 w-4" /> Configurar planilla
           </Button>
         </div>
       </div>
+
+      {isClosed && (
+        <p className="rounded-md bg-muted px-3 py-2 text-sm">
+          🔒 Este período está cerrado: las notas se pueden ver pero no cambiar. Un administrador lo puede reabrir en
+          Configuración → Año escolar.
+        </p>
+      )}
 
       {sheet.sections.length === 0 ? (
         <Card>
@@ -145,8 +161,10 @@ export function GradeSheet() {
             <p className="text-sm text-muted-foreground">
               Configura las secciones y columnas para empezar a registrar notas, o carga una plantilla existente.
             </p>
-            <Button onClick={() => setConfigureOpen(true)}>Configurar planilla</Button>
-            {periods && periods.length > 1 && (
+            <Button onClick={() => setConfigureOpen(true)} disabled={isClosed}>
+              Configurar planilla
+            </Button>
+            {periods && periods.length > 1 && !isClosed && (
               <CopyFromPeriod
                 groupSubjectId={gsId}
                 toPeriodId={pId}
@@ -163,8 +181,15 @@ export function GradeSheet() {
             minPassing={sheet.min_passing_grade}
             onManage={() => setConventionsOpen(true)}
           />
-          <GradeSheetTable key={`table-${gsId}-${pId}`} sheet={sheet} groupSubjectId={gsId} periodId={pId} />
-          <GradeSheetMobile key={`mobile-${gsId}-${pId}`} sheet={sheet} groupSubjectId={gsId} periodId={pId} />
+          <GradeSheetTable
+            key={`table-${gsId}-${pId}`}
+            sheet={sheet}
+            groupSubjectId={gsId}
+            periodId={pId}
+            locked={isClosed}
+            onAddActivity={isClosed ? undefined : (sectionId) => setAddActivity({ sectionId })}
+          />
+          <GradeSheetMobile key={`mobile-${gsId}-${pId}`} sheet={sheet} groupSubjectId={gsId} periodId={pId} locked={isClosed} />
         </>
       )}
 
@@ -198,7 +223,19 @@ export function GradeSheet() {
 
       <ConventionsDialog open={conventionsOpen} onOpenChange={setConventionsOpen} />
 
-      {course && <CopyPaymentsDialog open={copiesOpen} onOpenChange={setCopiesOpen} groupId={course.group_id} />}
+      {addActivity && (
+        <AddActivityDialog
+          key={`activity-${gsId}-${pId}-${addActivity.sectionId ?? 'x'}`}
+          open
+          onOpenChange={(open) => !open && setAddActivity(null)}
+          sections={sheet.sections}
+          presetSectionId={addActivity.sectionId}
+          groupSubjectId={gsId}
+          periodId={pId}
+        />
+      )}
+
+      {course && <CopyPaymentsDialog open={copiesOpen} onOpenChange={setCopiesOpen} groupId={course.group_id} periodId={pId} />}
     </div>
   )
 }

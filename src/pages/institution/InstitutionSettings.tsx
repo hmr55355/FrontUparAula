@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
-import { Check, Pencil, X } from 'lucide-react'
+import { Trash2, X } from 'lucide-react'
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { InlineNameEdit } from '@/components/ui/inline-name-edit'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { api } from '@/services/api/client'
 import { institutionsApi } from '@/services/api/institutions'
@@ -20,7 +21,8 @@ import { academicStructureApi } from '@/services/api/academicStructure'
 import { GradeLevelsPanel, gradeLevelsQueryKey } from '@/pages/institution/GradeLevelsPanel'
 import { ShiftsPanel, shiftsQueryKey } from '@/pages/institution/ShiftsPanel'
 import { PerformanceScalePanel } from '@/pages/institution/PerformanceScalePanel'
-import type { GradeLevel } from '@/types'
+import { GroupRosterDialog } from '@/pages/institution/GroupRosterDialog'
+import type { GradeLevel, Group, Institution } from '@/types'
 
 export function InstitutionSettings() {
   const { data: institution } = useCurrentInstitution()
@@ -38,6 +40,7 @@ export function InstitutionSettings() {
         </p>
       </div>
 
+      <InstitutionInfoCard institution={institution} />
       <LogoCard institutionId={institution.id} hasLogo={!!institution.logo} />
 
       <Tabs defaultValue="teachers">
@@ -74,6 +77,72 @@ export function InstitutionSettings() {
         </TabsContent>
       </Tabs>
     </div>
+  )
+}
+
+/** Datos de la institución. La escala y la nota mínima están en "Escala de valoración". */
+function InstitutionInfoCard({ institution }: { institution: Institution }) {
+  const queryClient = useQueryClient()
+  const initial = {
+    name: institution.name,
+    nit: institution.nit ?? '',
+    rector: institution.rector ?? '',
+    city: institution.city,
+    department: institution.department,
+  }
+  const [form, setForm] = useState(initial)
+  const changed = (Object.keys(initial) as (keyof typeof initial)[]).some((k) => form[k].trim() !== initial[k])
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.put(`/institutions/${institution.id}`, {
+        name: form.name.trim(),
+        nit: form.nit.trim() || null,
+        rector: form.rector.trim() || null,
+        city: form.city.trim(),
+        department: form.department.trim(),
+      }),
+    onSuccess: () => {
+      toast.success('Datos de la institución actualizados.')
+      queryClient.invalidateQueries({ queryKey: ['institutions', 'current'] })
+    },
+    onError: (error) =>
+      toast.error((axios.isAxiosError(error) && error.response?.data?.message) || 'No pudimos guardar los datos.'),
+  })
+
+  const field = (key: keyof typeof initial, label: string, placeholder?: string) => (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <Input value={form[key]} placeholder={placeholder} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
+    </div>
+  )
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Datos de la institución</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {field('name', 'Nombre')}
+          {field('nit', 'NIT', '900123456-7')}
+          {field('rector', 'Rector(a)')}
+          {field('city', 'Municipio')}
+          {field('department', 'Departamento')}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          El nombre, el NIT y el rector salen en los encabezados de los reportes y boletines.
+        </p>
+        <Button
+          size="sm"
+          className="w-fit"
+          onClick={() => save.mutate()}
+          disabled={!changed || !form.name.trim() || !form.city.trim() || !form.department.trim() || save.isPending}
+        >
+          {save.isPending ? 'Guardando...' : 'Guardar datos'}
+        </Button>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -157,9 +226,27 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
     onError: () => toast.error('No pudimos invitar a ese docente. ¿Ya tiene cuenta en UparAula?'),
   })
 
+  const errorText = (error: unknown, fallback: string) =>
+    (axios.isAxiosError(error) && error.response?.data?.message) || fallback
+
   const remove = useMutation({
     mutationFn: (userId: number) => api.delete(`/institutions/${institutionId}/teachers/${userId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'teachers'] }),
+    onSuccess: () => {
+      toast.success('Docente removido de la institución.')
+      queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'teachers'] })
+    },
+    onError: (error) => toast.error(errorText(error, 'No pudimos remover al docente.')),
+  })
+
+  const changeRole = useMutation({
+    mutationFn: (vars: { userId: number; role: 'admin' | 'teacher' }) =>
+      api.patch(`/institutions/${institutionId}/teachers/${vars.userId}/role`, { role: vars.role }),
+    onSuccess: () => {
+      toast.success('Rol actualizado.')
+      queryClient.invalidateQueries({ queryKey: ['institutions', institutionId, 'teachers'] })
+      queryClient.invalidateQueries({ queryKey: ['institutions', 'current'] })
+    },
+    onError: (error) => toast.error(errorText(error, 'No pudimos cambiar el rol.')),
   })
 
   return (
@@ -198,14 +285,39 @@ function TeachersPanel({ institutionId }: { institutionId: number }) {
                 <TableCell>{t.name}</TableCell>
                 <TableCell>{t.email}</TableCell>
                 <TableCell>
-                  <Badge variant={t.role === 'admin' ? 'default' : 'secondary'}>{t.role}</Badge>
+                  <select
+                    className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                    value={t.role}
+                    disabled={changeRole.isPending}
+                    onChange={(e) => {
+                      const role = e.target.value as 'admin' | 'teacher'
+                      const message =
+                        role === 'admin'
+                          ? `¿Darle a ${t.name} el rol de administrador? Podrá gestionar docentes, grupos, materias y la escala.`
+                          : `¿Quitarle a ${t.name} el rol de administrador?`
+                      if (window.confirm(message)) changeRole.mutate({ userId: t.user_id, role })
+                    }}
+                    aria-label={`Rol de ${t.name}`}
+                  >
+                    <option value="teacher">Docente</option>
+                    <option value="admin">Administrador</option>
+                  </select>
                 </TableCell>
                 <TableCell>{t.status}</TableCell>
                 <TableCell className="flex gap-1">
                   <Button variant="ghost" size="sm" onClick={() => setCoursesTeacher(t)}>
                     Cursos
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => remove.mutate(t.user_id)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={remove.isPending}
+                    onClick={() =>
+                      window.confirm(
+                        `¿Remover a ${t.name} de la institución? Deja de ver sus cursos aquí; sus notas y registros se conservan.`
+                      ) && remove.mutate(t.user_id)
+                    }
+                  >
                     Remover
                   </Button>
                 </TableCell>
@@ -514,6 +626,7 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
   const [gradeLevelId, setGradeLevelId] = useState<number | ''>('')
   const [shiftId, setShiftId] = useState<number | ''>('')
   const [shiftFilter, setShiftFilter] = useState<number | ''>('')
+  const [rosterGroup, setRosterGroup] = useState<Group | null>(null)
 
   const { data: groups } = useQuery({
     queryKey: ['groups', institutionId],
@@ -579,6 +692,19 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
       invalidate()
     },
     onError: () => toast.error('No pudimos actualizar el grupo.'),
+  })
+
+  const deleteGroup = useMutation({
+    mutationFn: (id: number) => api.delete(`/groups/${id}`),
+    onSuccess: () => {
+      toast.success('Grupo eliminado.')
+      invalidate()
+    },
+    // 422 con el detalle: el backend solo borra grupos vacíos.
+    onError: (error) =>
+      toast.error((axios.isAxiosError(error) && error.response?.data?.message) || 'No pudimos eliminar el grupo.', {
+        duration: 8000,
+      }),
   })
 
   const visibleGroups = groups?.filter((g) => !shiftFilter || g.shift_id === shiftFilter)
@@ -669,6 +795,7 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
               <TableHead>Grado</TableHead>
               <TableHead>Jornada</TableHead>
               <TableHead>Estudiantes</TableHead>
+              <TableHead />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -709,12 +836,41 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
                     ))}
                   </select>
                 </TableCell>
-                <TableCell>{g.student_count}</TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="sm" onClick={() => setRosterGroup(g)} title="Ver y gestionar estudiantes">
+                    {g.student_count} · Estudiantes
+                  </Button>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    aria-label={`Eliminar grupo ${g.name}`}
+                    title="Solo se pueden eliminar grupos vacíos"
+                    disabled={deleteGroup.isPending}
+                    onClick={() =>
+                      window.confirm(`¿Eliminar el grupo ${g.name}? Solo se puede si no tiene estudiantes, cursos ni registros.`) &&
+                      deleteGroup.mutate(g.id)
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </CardContent>
+      {rosterGroup && (
+        <GroupRosterDialog
+          key={rosterGroup.id}
+          open
+          onOpenChange={(open) => !open && setRosterGroup(null)}
+          group={rosterGroup}
+          groups={groups ?? []}
+        />
+      )}
     </Card>
   )
 }
@@ -918,65 +1074,6 @@ function SubjectColorPicker({ value, onChange }: { value: string; onChange: (col
   )
 }
 
-/** Nombre con lápiz para editarlo en el sitio (Enter guarda, Escape cancela). */
-function InlineNameEdit({
-  value,
-  onSave,
-  disabled,
-}: {
-  value: string
-  onSave: (value: string) => void
-  disabled?: boolean
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-
-  if (!editing) {
-    return (
-      <span className="inline-flex items-center gap-1">
-        {value}
-        <button
-          type="button"
-          className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={() => {
-            setDraft(value)
-            setEditing(true)
-          }}
-          aria-label="Cambiar nombre"
-        >
-          <Pencil className="h-3.5 w-3.5" />
-        </button>
-      </span>
-    )
-  }
-
-  const save = () => {
-    const name = draft.trim()
-    setEditing(false)
-    if (name && name !== value) onSave(name)
-  }
-
-  return (
-    <span className="inline-flex items-center gap-1">
-      <Input
-        autoFocus
-        className="h-8 w-28"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') save()
-          if (e.key === 'Escape') setEditing(false)
-        }}
-      />
-      <Button size="icon" variant="ghost" className="h-7 w-7" disabled={disabled || !draft.trim()} onClick={save} aria-label="Guardar nombre">
-        <Check className="h-4 w-4" />
-      </Button>
-      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditing(false)} aria-label="Cancelar">
-        <X className="h-4 w-4" />
-      </Button>
-    </span>
-  )
-}
 
 function GradeCheckboxes({
   gradeLevels,

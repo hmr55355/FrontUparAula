@@ -121,7 +121,8 @@ function App() {
                 <Route path="/behavior" element={<TeacherViewGuard><Behavior /></TeacherViewGuard>} />
                 <Route path="/citations" element={<TeacherViewGuard><Citations /></TeacherViewGuard>} />
                 <Route path="/observations" element={<TeacherViewGuard><Observations /></TeacherViewGuard>} />
-                <Route path="/student/:id" element={<TeacherViewGuard><StudentProfile /></TeacherViewGuard>} />
+                {/* En las dos vistas: el admin llega desde "Estudiantes" del grupo para ver y editar datos. */}
+                <Route path="/student/:id" element={<StudentProfile />} />
                 <Route path="/homeworks" element={<TeacherViewGuard><Homeworks /></TeacherViewGuard>} />
                 <Route path="/homeworks/:homeworkId" element={<TeacherViewGuard><HomeworkDeliveries /></TeacherViewGuard>} />
                 <Route path="/plans" element={<TeacherViewGuard><Plans /></TeacherViewGuard>} />

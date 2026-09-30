@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { gradesApi } from '@/services/api/grades'
+import { gradeColumnsApi, gradesApi } from '@/services/api/grades'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import { ConventionChips } from '@/pages/grades/conventions'
 import { conventionValue, parseGradeInput } from '@/pages/grades/conventionHelpers'
@@ -14,7 +14,7 @@ import type { GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/g
 
 /**
  * Pone la misma nota (o la misma convención: NP, ✓…) a todos los estudiantes en
- * una actividad (columna manual).
+ * una actividad (columna manual). También permite renombrar la actividad.
  * Por defecto solo llena a quienes aún no tienen nota, para no pisar notas ya
  * registradas por error; reemplazar todas es una opción explícita.
  */
@@ -36,6 +36,29 @@ export function BulkColumnGradeDialog({
   const queryClient = useQueryClient()
   const [value, setValue] = useState('')
   const [replaceExisting, setReplaceExisting] = useState(false)
+  const [name, setName] = useState(column.name)
+  const [shortName, setShortName] = useState(column.short_name ?? '')
+  const [renaming, setRenaming] = useState(false)
+  const nameChanged = name.trim() !== column.name || shortName.trim() !== (column.short_name ?? '')
+
+  const rename = async () => {
+    if (!name.trim()) {
+      toast.error('La actividad necesita un nombre.')
+      return
+    }
+    setRenaming(true)
+    try {
+      await gradeColumnsApi.update(column.id, { name: name.trim(), short_name: shortName.trim() || null })
+      toast.success('Nombre de la actividad actualizado.')
+      queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+      // Si la actividad es la columna de una tarea, la tarea también cambia de nombre.
+      queryClient.invalidateQueries({ queryKey: ['homeworks', groupSubjectId, periodId] })
+    } catch {
+      toast.error('No pudimos cambiar el nombre.')
+    } finally {
+      setRenaming(false)
+    }
+  }
   const [saving, setSaving] = useState(false)
 
   const maxScore = Number(column.max_score)
@@ -81,9 +104,29 @@ export function BulkColumnGradeDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Misma nota para todos — {column.name}</DialogTitle>
+          <DialogTitle>{column.name}</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-2 rounded-md border p-3">
+            <p className="text-xs font-semibold uppercase text-muted-foreground">Actividad</p>
+            <div className="grid grid-cols-[1fr_100px] gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Nombre</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Encabezado</Label>
+                <Input maxLength={8} value={shortName} onChange={(e) => setShortName(e.target.value)} />
+              </div>
+            </div>
+            {nameChanged && (
+              <Button size="sm" variant="outline" className="w-fit" onClick={rename} disabled={renaming}>
+                {renaming ? 'Guardando...' : 'Guardar nombre'}
+              </Button>
+            )}
+          </div>
+
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Misma nota para todos</p>
           <div className="space-y-1">
             <Label>Nota{sheet.conventions.length > 0 ? ' o convención' : ''}</Label>
             <Input

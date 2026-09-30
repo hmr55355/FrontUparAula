@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -12,15 +12,19 @@ import { copyChargesApi } from '@/services/api/copyCharges'
 import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import type { CopyChargeStudent } from '@/types/copies'
 import { PaymentDialog } from '@/pages/copies/PaymentDialog'
+import { NewChargeDialog } from '@/pages/copies/NewChargeDialog'
 
 export function CopyPaymentsDialog({
   open,
   onOpenChange,
   groupId,
+  periodId,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupId: number
+  /** Período de la planilla abierta: los cobros creados desde aquí quedan en él. */
+  periodId?: number
 }) {
   const [chargeId, setChargeId] = useState<number | null>(null)
 
@@ -33,7 +37,7 @@ export function CopyPaymentsDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-2xl">
         {chargeId === null ? (
-          <ChargeList groupId={groupId} onSelect={setChargeId} />
+          <ChargeList groupId={groupId} periodId={periodId} onSelect={setChargeId} />
         ) : (
           <ChargeDetail chargeId={chargeId} onBack={() => setChargeId(null)} />
         )}
@@ -42,7 +46,16 @@ export function CopyPaymentsDialog({
   )
 }
 
-function ChargeList({ groupId, onSelect }: { groupId: number; onSelect: (id: number) => void }) {
+function ChargeList({
+  groupId,
+  periodId,
+  onSelect,
+}: {
+  groupId: number
+  periodId?: number
+  onSelect: (id: number) => void
+}) {
+  const [creating, setCreating] = useState(false)
   // Sin filtro de período por defecto: un cobro de copias suele no estar atado a un período
   // específico, igual que la vista "Todos los períodos" de /copies.
   const { data: charges, isLoading } = useQuery({
@@ -55,6 +68,13 @@ function ChargeList({ groupId, onSelect }: { groupId: number; onSelect: (id: num
       <DialogHeader>
         <DialogTitle>Pagos de copias</DialogTitle>
       </DialogHeader>
+
+      <Button size="sm" variant="outline" className="w-fit" onClick={() => setCreating(true)}>
+        <Plus className="h-4 w-4" /> Nuevo cobro
+      </Button>
+      {creating && (
+        <NewChargeDialog open onOpenChange={setCreating} groupId={groupId} periodId={periodId} />
+      )}
 
       {isLoading && <p className="text-sm text-muted-foreground">Cargando cobros...</p>}
 

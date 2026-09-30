@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { copyChargesApi } from '@/services/api/copyCharges'
+import { PAYMENT_STATUS_LABELS } from '@/types/copies'
 import type { CopyChargeStudent, StudentCopyPayment } from '@/types/copies'
 import { localDateString } from '@/utils/dateHelpers'
 
@@ -90,6 +91,28 @@ export function PaymentDialog({
     }
   }
 
+  // Deshace un pago o una exoneración registrados por error: vuelve a "Debe".
+  const hasRecord = !!payment && payment.status !== 'debe'
+  const markAsOwing = async () => {
+    if (!payment) return
+    const current =
+      payment.status === 'exonerado'
+        ? 'exonerado'
+        : `${PAYMENT_STATUS_LABELS[payment.status].toLowerCase()} ($${Number(payment.amount_paid).toLocaleString('es-CO')})`
+    if (!window.confirm(`${student.first_name} figura como ${current}. ¿Marcarlo como que no ha pagado?`)) return
+    setSaving(true)
+    try {
+      await copyChargesApi.bulkPayments(chargeId, [{ student_id: student.id, status: 'debe' }])
+      toast.success('Pago anulado: el estudiante vuelve a figurar como que debe.')
+      invalidate()
+      onOpenChange(false)
+    } catch {
+      toast.error('No pudimos anular el pago.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const exonerate = async () => {
     const reason = window.prompt('Motivo de la exoneración:')
     if (!reason) return
@@ -139,6 +162,18 @@ export function PaymentDialog({
               Exonerar
             </Button>
           </div>
+
+          {hasRecord && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Ahora figura como <strong>{PAYMENT_STATUS_LABELS[payment.status]}</strong>
+                {payment.status !== 'exonerado' && ` · $${Number(payment.amount_paid).toLocaleString('es-CO')}`}
+              </span>
+              <Button size="sm" variant="ghost" className="text-destructive" onClick={markAsOwing} disabled={saving}>
+                Marcar como no pagado
+              </Button>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

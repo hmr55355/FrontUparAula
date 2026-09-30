@@ -12,7 +12,14 @@ import { ConventionChips } from '@/pages/grades/conventions'
 import { gradeCellDisplay, inputFromConvention, parseGradeInput, type GradeInput } from '@/pages/grades/conventionHelpers'
 import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
 
-type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
+type AdjustTarget = {
+  type: 'section' | 'period'
+  id: number
+  label: string
+  currentValue: number | null
+  /** Motivo del ajuste manual vigente; null si la nota es la calculada. */
+  adjustmentReason: string | null
+}
 
 type View = { mode: 'list' } | { mode: 'detail'; studentId: number } | { mode: 'pick-column' } | { mode: 'quick'; columnId: number }
 
@@ -20,10 +27,13 @@ export function GradeSheetMobile({
   sheet,
   groupSubjectId,
   periodId,
+  locked = false,
 }: {
   sheet: GradeSheetResponse
   groupSubjectId: number
   periodId: number
+  /** Período cerrado: todo en solo lectura. */
+  locked?: boolean
 }) {
   const [view, setView] = useState<View>({ mode: 'list' })
   const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
@@ -41,6 +51,7 @@ export function GradeSheetMobile({
         periodId={periodId}
         onBack={() => setView({ mode: 'list' })}
         onSave={(columnId, input) => saveGrade.mutate({ studentId: student.id, columnId, ...input })}
+        locked={locked}
       />
     )
   }
@@ -105,7 +116,7 @@ export function GradeSheetMobile({
 
   return (
     <div className="flex flex-col gap-3 lg:hidden">
-      <Button onClick={() => setView({ mode: 'pick-column' })}>✏️ Calificar actividad</Button>
+      {!locked && <Button onClick={() => setView({ mode: 'pick-column' })}>✏️ Calificar actividad</Button>}
       <div className="flex flex-col gap-2">
         {sheet.students.map((student) => {
           const periodFinal = sheet.period_finals[student.id]?.period_final
@@ -142,6 +153,7 @@ function StudentDetail({
   periodId,
   onBack,
   onSave,
+  locked = false,
 }: {
   sheet: GradeSheetResponse
   studentId: number
@@ -150,6 +162,7 @@ function StudentDetail({
   periodId: number
   onBack: () => void
   onSave: (columnId: number, input: GradeInput) => void
+  locked?: boolean
 }) {
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
   const periodFinalRow = sheet.period_finals[studentId]
@@ -180,7 +193,7 @@ function StudentDetail({
                     grade={grade}
                     conventions={sheet.conventions}
                     minPassing={sheet.min_passing_grade}
-                    readOnly={column.column_type !== 'manual'}
+                    readOnly={column.column_type !== 'manual' || locked}
                     onSave={(input) => onSave(column.id, input)}
                   />
                 )
@@ -194,7 +207,7 @@ function StudentDetail({
                   bold
                   adjusted={sectionFinalRow?.manually_adjusted}
                   onAdjust={
-                    sectionFinalRow
+                    sectionFinalRow && !locked
                       ? () =>
                           setAdjustTarget({
                             type: 'section',
@@ -202,6 +215,7 @@ function StudentDetail({
                             label: `${studentName} — ${section.section_final_label}`,
                             currentValue:
                               sectionFinalRow.section_final === null ? null : Number(sectionFinalRow.section_final),
+                            adjustmentReason: sectionFinalRow.manually_adjusted ? sectionFinalRow.adjustment_reason ?? '' : null,
                           })
                       : undefined
                   }
@@ -220,7 +234,7 @@ function StudentDetail({
           <button
             type="button"
             className="text-lg font-bold disabled:opacity-70"
-            disabled={!periodFinalRow}
+            disabled={!periodFinalRow || locked}
             onClick={() =>
               periodFinalRow &&
               setAdjustTarget({
@@ -228,6 +242,7 @@ function StudentDetail({
                 id: periodFinalRow.id,
                 label: `${studentName} — Def Total`,
                 currentValue: periodFinalRow.period_final === null ? null : Number(periodFinalRow.period_final),
+                adjustmentReason: periodFinalRow.manually_adjusted ? periodFinalRow.adjustment_reason ?? '' : null,
               })
             }
           >
@@ -244,6 +259,7 @@ function StudentDetail({
           id={adjustTarget.id}
           label={adjustTarget.label}
           currentValue={adjustTarget.currentValue}
+          adjustmentReason={adjustTarget.adjustmentReason}
           groupSubjectId={groupSubjectId}
           periodId={periodId}
         />

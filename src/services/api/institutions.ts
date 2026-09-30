@@ -30,6 +30,12 @@ export const institutionsApi = {
   academicYears: (institutionId: number) =>
     api.get<{ data: AcademicYear[] }>('/academic-years', { params: { institutionId } }).then((r) => r.data.data),
 
+  updateAcademicYear: (id: number, payload: { start_date?: string; end_date?: string }) =>
+    api.put<{ data: AcademicYear }>(`/academic-years/${id}`, payload).then((r) => r.data.data),
+
+  setActiveAcademicYear: (id: number) =>
+    api.patch<{ data: AcademicYear }>(`/academic-years/${id}/set-active`).then((r) => r.data.data),
+
   createAcademicYear: (payload: { institution_id: number; year: number; start_date: string; end_date: string; is_active?: boolean }) =>
     api.post<{ data: AcademicYear }>('/academic-years', payload).then((r) => r.data.data),
 

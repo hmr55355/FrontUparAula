@@ -30,6 +30,9 @@ export function ParentDialog({
   const [phone, setPhone] = useState(parent?.phone ?? '')
   const [phoneAlt, setPhoneAlt] = useState(parent?.phone_alt ?? '')
   const [email, setEmail] = useState(parent?.email ?? '')
+  const [documentNumber, setDocumentNumber] = useState(parent?.document_number ?? '')
+  const [address, setAddress] = useState(parent?.address ?? '')
+  const [occupation, setOccupation] = useState(parent?.occupation ?? '')
   const [isPrimary, setIsPrimary] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -45,6 +48,9 @@ export function ParentDialog({
       phone: phone.trim(),
       phone_alt: phoneAlt.trim() || undefined,
       email: email.trim() || undefined,
+      document_number: documentNumber.trim() || undefined,
+      address: address.trim() || undefined,
+      occupation: occupation.trim() || undefined,
     }
     setSaving(true)
     try {
@@ -52,7 +58,7 @@ export function ParentDialog({
         await parentsApi.update(parent.id, payload)
         toast.success('Acudiente actualizado.')
       } else {
-        await parentsApi.create({ student_id: studentId, ...payload, is_primary: isPrimary })
+        await parentsApi.create({ student_id: studentId, ...payload, is_primary: isPrimary, is_primary_contact: isPrimary })
         toast.success('Acudiente agregado.')
       }
       queryClient.invalidateQueries({ queryKey: ['student-profile', studentId] })
@@ -109,9 +115,25 @@ export function ParentDialog({
               <Input type="tel" value={phoneAlt} onChange={(e) => setPhoneAlt(e.target.value)} />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label>Correo (opcional)</Label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Correo (opcional)</Label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Documento (opcional)</Label>
+              <Input inputMode="numeric" value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>Dirección (opcional)</Label>
+              <Input value={address} onChange={(e) => setAddress(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>Ocupación (opcional)</Label>
+              <Input value={occupation} onChange={(e) => setOccupation(e.target.value)} />
+            </div>
           </div>
           {!parent && (
             <label className="flex items-center gap-2 text-sm">

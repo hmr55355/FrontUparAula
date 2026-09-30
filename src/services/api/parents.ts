@@ -9,7 +9,11 @@ export interface CreateParentPayload {
   phone: string
   phone_alt?: string
   email?: string
+  document_number?: string
+  address?: string
+  occupation?: string
   is_primary?: boolean
+  is_primary_contact?: boolean
 }
 
 export const parentsApi = {
@@ -19,6 +23,6 @@ export const parentsApi = {
   create: (payload: CreateParentPayload) =>
     api.post<{ data: ParentGuardian }>('/parents', payload).then((r) => r.data.data),
 
-  update: (id: number, payload: Partial<Omit<CreateParentPayload, 'student_id' | 'is_primary'>>) =>
+  update: (id: number, payload: Partial<Omit<CreateParentPayload, 'student_id' | 'is_primary' | 'is_primary_contact'>>) =>
     api.put<{ data: ParentGuardian }>(`/parents/${id}`, payload).then((r) => r.data.data),
 }

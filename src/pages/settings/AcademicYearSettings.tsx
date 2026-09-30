@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label'
 import { institutionsApi } from '@/services/api/institutions'
 import { periodsApi } from '@/services/api/periods'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { Badge } from '@/components/ui/badge'
+import axios from 'axios'
+import type { AcademicYear, Period } from '@/types'
 
 export function AcademicYearSettings() {
   const { data: institution } = useCurrentInstitution()
@@ -33,6 +36,8 @@ export function AcademicYearSettings() {
       setSelectedYearId(academicYears.find((y) => y.is_active)?.id ?? academicYears[0].id)
     }
   }, [academicYears, selectedYearId])
+
+  const selectedYear = academicYears?.find((y) => y.id === selectedYearId)
 
   const { data: periods } = useQuery({
     queryKey: ['periods', selectedYearId],
@@ -116,6 +121,9 @@ export function AcademicYearSettings() {
             ))}
           </select>
 
+          {selectedYear && <YearControls key={`${selectedYear.id}-${selectedYear.start_date}-${selectedYear.end_date}-${selectedYear.is_active}`} year={selectedYear} />}
+
+          <p className="text-xs font-semibold uppercase text-muted-foreground">Nuevo año lectivo</p>
           <div className="grid grid-cols-3 gap-2">
             <Input placeholder="Año (ej. 2027)" type="number" value={newYear} onChange={(e) => setNewYear(e.target.value)} />
             <Input type="date" value={newYearStart} onChange={(e) => setNewYearStart(e.target.value)} />
@@ -134,21 +142,7 @@ export function AcademicYearSettings() {
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {periods?.map((p) => (
-            <div key={p.id} className="flex items-center justify-between rounded-md border p-3 text-sm">
-              <div>
-                <p className="font-medium">{p.name}</p>
-                <p className="text-muted-foreground">
-                  {p.start_date.slice(0, 10)} — {p.end_date.slice(0, 10)}
-                </p>
-              </div>
-              {p.is_active ? (
-                <span className="text-xs font-medium text-primary">Activo</span>
-              ) : (
-                <Button size="sm" variant="outline" onClick={() => setActive(p.id)}>
-                  Activar
-                </Button>
-              )}
-            </div>
+            <PeriodRow key={`${p.id}-${p.name}-${p.start_date}-${p.end_date}-${p.is_closed}`} period={p} onActivate={setActive} />
           ))}
           {periods?.length === 0 && <p className="text-sm text-muted-foreground">Sin períodos para este año.</p>}
 
@@ -174,3 +168,186 @@ export function AcademicYearSettings() {
     </div>
   )
 }
+
+/**
+ * Un período: nombre y fechas editables, activar, y cerrar/reabrir. Cerrado, el
+ * backend rechaza cualquier cambio de notas en él (la planilla queda en solo lectura).
+ */
+function PeriodRow({ period, onActivate }: { period: Period; onActivate: (id: number) => void }) {
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(period.name)
+  const [start, setStart] = useState(period.start_date.slice(0, 10))
+  const [end, setEnd] = useState(period.end_date.slice(0, 10))
+  const [saving, setSaving] = useState(false)
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['periods'] })
+    queryClient.invalidateQueries({ queryKey: ['grades-sheet'] })
+  }
+
+  const errorText = (error: unknown, fallback: string) =>
+    (axios.isAxiosError(error) &&
+      (error.response?.data?.errors?.start_date?.[0] || error.response?.data?.errors?.end_date?.[0] || error.response?.data?.message)) ||
+    fallback
+
+  const save = async () => {
+    if (!name.trim() || !start || !end) {
+      toast.error('Completa el nombre y las fechas.')
+      return
+    }
+    setSaving(true)
+    try {
+      await periodsApi.update(period.id, { name: name.trim(), start_date: start, end_date: end })
+      toast.success('Período actualizado.')
+      setEditing(false)
+      invalidate()
+    } catch (error) {
+      toast.error(errorText(error, 'No pudimos actualizar el período.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const toggleClosed = async () => {
+    const closing = !period.is_closed
+    const message = closing
+      ? `¿Cerrar "${period.name}"? Nadie podrá registrar ni cambiar notas de ese período hasta que lo reabras.`
+      : `¿Reabrir "${period.name}"? Los docentes podrán volver a cambiar sus notas.`
+    if (!window.confirm(message)) return
+    setSaving(true)
+    try {
+      await periodsApi.update(period.id, { is_closed: closing })
+      toast.success(closing ? 'Período cerrado.' : 'Período reabierto.')
+      invalidate()
+    } catch (error) {
+      toast.error(errorText(error, 'No pudimos cambiar el estado del período.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <div className="flex flex-col gap-2 rounded-md border p-3 text-sm">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="space-y-1">
+            <Label className="text-xs">Nombre</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Inicio</Label>
+            <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Fin</Label>
+            <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+          </div>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Cambiar las fechas cambia a qué período pertenecen la asistencia y las notas de esos días.
+        </p>
+        <div className="flex gap-2">
+          <Button size="sm" onClick={save} disabled={saving}>
+            {saving ? 'Guardando...' : 'Guardar'}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setEditing(false)} disabled={saving}>
+            Cancelar
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3 text-sm">
+      <div>
+        <div className="flex items-center gap-2 font-medium">
+          {period.name}
+          {period.is_active && <Badge>Activo</Badge>}
+          {period.is_closed && <Badge variant="secondary">🔒 Cerrado</Badge>}
+        </div>
+        <p className="text-muted-foreground">
+          {period.start_date.slice(0, 10)} — {period.end_date.slice(0, 10)}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <Button size="sm" variant="ghost" onClick={() => setEditing(true)} disabled={saving}>
+          Editar
+        </Button>
+        <Button size="sm" variant="ghost" onClick={toggleClosed} disabled={saving}>
+          {period.is_closed ? 'Reabrir' : 'Cerrar'}
+        </Button>
+        {!period.is_active && (
+          <Button size="sm" variant="outline" onClick={() => onActivate(period.id)} disabled={saving}>
+            Activar
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** Fechas del año seleccionado y "Activar este año" (el backend deja un solo año activo). */
+function YearControls({ year }: { year: AcademicYear }) {
+  const queryClient = useQueryClient()
+  const [start, setStart] = useState(year.start_date.slice(0, 10))
+  const [end, setEnd] = useState(year.end_date.slice(0, 10))
+  const [saving, setSaving] = useState(false)
+  const changed = start !== year.start_date.slice(0, 10) || end !== year.end_date.slice(0, 10)
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['academic-years'] })
+
+  const saveDates = async () => {
+    setSaving(true)
+    try {
+      await institutionsApi.updateAcademicYear(year.id, { start_date: start, end_date: end })
+      toast.success('Fechas del año actualizadas.')
+      invalidate()
+    } catch (error) {
+      toast.error((axios.isAxiosError(error) && error.response?.data?.message) || 'No pudimos guardar las fechas.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const activate = async () => {
+    if (!window.confirm(`¿Activar el año ${year.year}? El año activo actual dejará de estarlo.`)) return
+    setSaving(true)
+    try {
+      await institutionsApi.setActiveAcademicYear(year.id)
+      toast.success(`Año ${year.year} activado.`)
+      invalidate()
+      queryClient.invalidateQueries({ queryKey: ['group-subjects'] })
+    } catch {
+      toast.error('No pudimos activar el año.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-end gap-2 rounded-md border p-3">
+      <div className="space-y-1">
+        <Label className="text-xs">Inicio del año {year.year}</Label>
+        <Input type="date" value={start} onChange={(e) => setStart(e.target.value)} />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Fin</Label>
+        <Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} />
+      </div>
+      {changed && (
+        <Button size="sm" onClick={saveDates} disabled={saving}>
+          Guardar fechas
+        </Button>
+      )}
+      {year.is_active ? (
+        <Badge className="ml-auto">Año activo</Badge>
+      ) : (
+        <Button size="sm" variant="outline" className="ml-auto" onClick={activate} disabled={saving}>
+          Activar este año
+        </Button>
+      )}
+    </div>
+  )
+}
+

@@ -14,18 +14,30 @@ import {
   type GradeInput,
 } from '@/pages/grades/conventionHelpers'
 import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
-import { ListChecks } from 'lucide-react'
+import { ListChecks, Plus } from 'lucide-react'
 
-type AdjustTarget = { type: 'section' | 'period'; id: number; label: string; currentValue: number | null }
+type AdjustTarget = {
+  type: 'section' | 'period'
+  id: number
+  label: string
+  currentValue: number | null
+  /** Motivo del ajuste manual vigente; null si la nota es la calculada. */
+  adjustmentReason: string | null
+}
 
 export function GradeSheetTable({
   sheet,
   groupSubjectId,
   periodId,
+  onAddActivity,
+  locked = false,
 }: {
   sheet: GradeSheetResponse
   groupSubjectId: number
   periodId: number
+  onAddActivity?: (sectionId: number) => void
+  /** Período cerrado: todo en solo lectura. */
+  locked?: boolean
 }) {
   const saveGrade = useSaveGrade(groupSubjectId, periodId)
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
@@ -69,7 +81,20 @@ export function GradeSheetTable({
                 className="sticky top-0 z-20 border-b border-l px-3 py-2 text-center text-white"
                 style={{ backgroundColor: section.color }}
               >
-                {section.name} ({Number(section.weight)}%)
+                <span className="inline-flex items-center gap-1">
+                  {section.name} ({Number(section.weight)}%)
+                  {onAddActivity && (
+                    <button
+                      type="button"
+                      className="rounded p-0.5 opacity-80 hover:bg-white/20 hover:opacity-100"
+                      title={`Agregar actividad en ${section.name}`}
+                      aria-label={`Agregar actividad en ${section.name}`}
+                      onClick={() => onAddActivity(section.id)}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </span>
               </th>
             ))}
             <th rowSpan={2} className="sticky top-0 z-20 border-b border-l bg-muted px-3 py-2 text-center font-semibold">
@@ -86,7 +111,7 @@ export function GradeSheetTable({
                     style={secondRowTop}
                     title={[column.name, column.date?.slice(0, 10), column.description].filter(Boolean).join(' · ')}
                   >
-                    {column.column_type === 'manual' ? (
+                    {column.column_type === 'manual' && !locked ? (
                       <button
                         type="button"
                         className="inline-flex items-center gap-1 rounded px-1 hover:bg-muted"
@@ -136,7 +161,7 @@ export function GradeSheetTable({
                               grade={grade}
                               conventions={sheet.conventions}
                               minPassing={sheet.min_passing_grade}
-                              readOnly={isComputed}
+                              readOnly={isComputed || locked}
                               onSave={(input) =>
                                 saveGrade.mutate({ studentId: student.id, columnId: column.id, ...input })
                               }
@@ -151,7 +176,7 @@ export function GradeSheetTable({
                           highlight
                           adjusted={sectionFinalRow?.manually_adjusted}
                           onClick={
-                            sectionFinalRow
+                            sectionFinalRow && !locked
                               ? () =>
                                   setAdjustTarget({
                                     type: 'section',
@@ -159,6 +184,7 @@ export function GradeSheetTable({
                                     label: `${studentName} — ${section.section_final_label}`,
                                     currentValue:
                                       sectionFinalRow.section_final === null ? null : Number(sectionFinalRow.section_final),
+                                    adjustmentReason: sectionFinalRow.manually_adjusted ? sectionFinalRow.adjustment_reason ?? '' : null,
                                   })
                               : undefined
                           }
@@ -174,13 +200,14 @@ export function GradeSheetTable({
                   bold
                   adjusted={periodFinalRow?.manually_adjusted}
                   onClick={
-                    periodFinalRow
+                    periodFinalRow && !locked
                       ? () =>
                           setAdjustTarget({
                             type: 'period',
                             id: periodFinalRow.id,
                             label: `${studentName} — Def Total`,
                             currentValue: periodFinalRow.period_final === null ? null : Number(periodFinalRow.period_final),
+                            adjustmentReason: periodFinalRow.manually_adjusted ? periodFinalRow.adjustment_reason ?? '' : null,
                           })
                       : undefined
                   }
@@ -211,6 +238,7 @@ export function GradeSheetTable({
         id={adjustTarget.id}
         label={adjustTarget.label}
         currentValue={adjustTarget.currentValue}
+        adjustmentReason={adjustTarget.adjustmentReason}
         groupSubjectId={groupSubjectId}
         periodId={periodId}
       />

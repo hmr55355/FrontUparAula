@@ -17,6 +17,9 @@ export interface ParentGuardian {
   phone: string
   phone_alt: string | null
   email: string | null
+  document_number: string | null
+  address: string | null
+  occupation: string | null
   is_primary_contact: boolean
 }
 

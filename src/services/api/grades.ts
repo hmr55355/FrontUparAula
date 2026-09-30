@@ -1,5 +1,5 @@
 import { api } from '@/services/api/client'
-import type { Grade, GradeConvention, GradeSheetResponse, PeriodFinal, SectionFinal } from '@/types/grades'
+import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse, PeriodFinal, SectionFinal } from '@/types/grades'
 
 export const gradesApi = {
   sheet: (groupSubjectId: number, periodId: number) =>
@@ -23,6 +23,10 @@ export const gradesApi = {
 
   recalculate: (groupSubjectId: number, periodId: number) =>
     api.post('/period-finals/calculate', null, { params: { groupSubjectId, periodId } }),
+
+  clearSectionAdjustment: (id: number) => api.delete<{ data: SectionFinal }>(`/section-finals/${id}/adjust`),
+
+  clearPeriodAdjustment: (id: number) => api.delete<{ data: PeriodFinal }>(`/period-finals/${id}/adjust`),
 
   adjustSectionFinal: (id: number, payload: { section_final: number; adjustment_reason: string }) =>
     api.put<{ data: SectionFinal }>(`/section-finals/${id}/adjust`, payload).then((r) => r.data.data),
@@ -67,4 +71,24 @@ export const gradeConventionsApi = {
 
   reorder: (ids: number[]) =>
     api.patch<{ data: GradeConvention[] }>('/grade-conventions/reorder', { ids }).then((r) => r.data.data),
+}
+
+export interface NewGradeColumnPayload {
+  grade_section_id: number
+  column_type: 'manual'
+  name: string
+  short_name?: string
+  max_score?: number
+  date?: string
+  weight_mode: 'automatic' | 'manual'
+  weight?: number
+}
+
+/** Columnas sueltas de la planilla (agregar o renombrar sin pasar por Configurar planilla). */
+export const gradeColumnsApi = {
+  create: (payload: NewGradeColumnPayload) =>
+    api.post<{ data: GradeColumn }>('/grade-columns', payload).then((r) => r.data.data),
+
+  update: (id: number, payload: { name?: string; short_name?: string | null }) =>
+    api.put<{ data: GradeColumn }>(`/grade-columns/${id}`, payload).then((r) => r.data.data),
 }

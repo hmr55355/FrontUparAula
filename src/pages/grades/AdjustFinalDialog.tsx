@@ -16,6 +16,7 @@ export function AdjustFinalDialog({
   id,
   label,
   currentValue,
+  adjustmentReason = null,
   groupSubjectId,
   periodId,
 }: {
@@ -25,6 +26,8 @@ export function AdjustFinalDialog({
   id: number
   label: string
   currentValue: number | null
+  /** Motivo del ajuste vigente (null = la nota es la calculada). */
+  adjustmentReason?: string | null
   groupSubjectId: number
   periodId: number
 }) {
@@ -48,6 +51,20 @@ export function AdjustFinalDialog({
     onError: () => toast.error('No pudimos ajustar la nota.'),
   })
 
+  const isAdjusted = adjustmentReason !== null
+  const clear = useMutation({
+    mutationFn: async () => {
+      if (type === 'section') await gradesApi.clearSectionAdjustment(id)
+      else await gradesApi.clearPeriodAdjustment(id)
+    },
+    onSuccess: () => {
+      toast.success('Ajuste quitado: la nota vuelve al valor calculado.')
+      queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+      onOpenChange(false)
+    },
+    onError: () => toast.error('No pudimos quitar el ajuste.'),
+  })
+
   const numericValue = Number(value)
   const canSave = value.trim() !== '' && !Number.isNaN(numericValue) && numericValue >= 1 && reason.trim() !== ''
 
@@ -59,6 +76,16 @@ export function AdjustFinalDialog({
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted-foreground">{label}</p>
+          {isAdjusted && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-dashed px-3 py-2 text-sm">
+              <span className="text-muted-foreground">
+                Ajustada a mano{adjustmentReason ? `: "${adjustmentReason}"` : ''}
+              </span>
+              <Button size="sm" variant="ghost" onClick={() => clear.mutate()} disabled={clear.isPending}>
+                Quitar ajuste
+              </Button>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Nueva nota</Label>
             <Input type="number" step="0.1" min={1} value={value} onChange={(e) => setValue(e.target.value)} />
@@ -73,7 +100,8 @@ export function AdjustFinalDialog({
           </div>
           {type === 'section' && (
             <p className="text-xs text-muted-foreground">
-              Este ajuste no recalcula automáticamente la Definitiva Total del período — si corresponde, ajústala también.
+              La Definitiva Total del período se recalcula con este valor. El ajuste se conserva aunque después se
+              registren más notas.
             </p>
           )}
         </div>

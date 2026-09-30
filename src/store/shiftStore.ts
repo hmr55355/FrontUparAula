@@ -1,13 +1,16 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+import { localDateString } from '@/utils/dateHelpers'
+
 /**
- * Jornada elegida a mano por el docente. Guarda también cuál era la jornada
- * automática en ese momento: cuando la automática cambia (otro día u otra hora),
- * la elección manual deja de aplicar y se vuelve a la del horario.
+ * Jornada elegida a mano por el docente. Guarda la jornada automática de ese
+ * momento y el día: la elección vale mientras la automática no cambie y solo ese
+ * día. En cuanto la automática cambia, useActiveShift la borra (si no, revivía
+ * horas después cuando la automática volvía a ser la misma).
  */
 interface ShiftState {
-  manual: { shiftId: number; autoShiftId: number | null } | null
+  manual: { shiftId: number; autoShiftId: number | null; day: string } | null
   chooseShift: (shiftId: number, autoShiftId: number | null) => void
   clearManualShift: () => void
 }
@@ -16,7 +19,7 @@ export const useShiftStore = create<ShiftState>()(
   persist(
     (set) => ({
       manual: null,
-      chooseShift: (shiftId, autoShiftId) => set({ manual: { shiftId, autoShiftId } }),
+      chooseShift: (shiftId, autoShiftId) => set({ manual: { shiftId, autoShiftId, day: localDateString() } }),
       clearManualShift: () => set({ manual: null }),
     }),
     { name: 'uparaula-active-shift' }

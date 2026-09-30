@@ -23,15 +23,7 @@ export interface StudentAttendanceSummary {
 }
 
 export interface StudentFullProfile {
-  student: {
-    id: number
-    first_name: string
-    last_name: string
-    document_type: string
-    document_number: string | null
-    is_active: boolean
-    photo: string | null
-  }
+  student: Student
   active_period: { id: number; name: string } | null
   grades: StudentGradeSummary[]
   attendance_summary: StudentAttendanceSummary[]
@@ -41,3 +33,47 @@ export interface StudentFullProfile {
   citations: ParentCitation[]
   copy_payments: StudentCopyPayment[]
 }
+
+export type DocumentType = 'TI' | 'CC' | 'CE' | 'PA' | 'PPT'
+export type Gender = 'masculino' | 'femenino' | 'otro'
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  TI: 'Tarjeta de identidad',
+  CC: 'Cédula de ciudadanía',
+  CE: 'Cédula de extranjería',
+  PA: 'Pasaporte',
+  PPT: 'Permiso por protección temporal',
+}
+
+export interface Student {
+  id: number
+  institution_id?: number
+  first_name: string
+  last_name: string
+  document_type: DocumentType
+  document_number: string | null
+  birthdate: string | null
+  gender: Gender | null
+  address: string | null
+  phone: string | null
+  email: string | null
+  is_active: boolean
+  photo: string | null
+}
+
+export type EnrollmentStatus = 'activo' | 'retirado' | 'trasladado'
+
+/** Matrícula de un estudiante en un grupo (student_groups). */
+export interface Enrollment {
+  id: number
+  student_id: number
+  group_id: number
+  academic_year_id: number
+  enrollment_date: string
+  status: EnrollmentStatus
+  withdrawal_date: string | null
+  withdrawal_reason: string | null
+  student: Student
+}
+
+export type StudentPayload = Partial<Omit<Student, 'id' | 'institution_id' | 'is_active' | 'photo'>>
