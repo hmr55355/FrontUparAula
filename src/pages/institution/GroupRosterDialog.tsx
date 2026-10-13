@@ -42,6 +42,29 @@ export function GroupRosterDialog({
   group: Group
   groups: Group[]
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Estudiantes de {group.name}</DialogTitle>
+        </DialogHeader>
+        <GroupRoster group={group} groups={groups} onNavigate={() => onOpenChange(false)} />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** La lista en sí (la usan la ventana de Institución y la página "Estudiantes"). */
+export function GroupRoster({
+  group,
+  groups,
+  onNavigate,
+}: {
+  group: Group
+  groups: Group[]
+  /** Al seguir el enlace al perfil de un estudiante (p. ej. para cerrar la ventana). */
+  onNavigate?: () => void
+}) {
   const queryClient = useQueryClient()
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Student | null>(null)
@@ -54,7 +77,6 @@ export function GroupRosterDialog({
   const { data: enrollments } = useQuery({
     queryKey: ['group-enrollments', group.id],
     queryFn: () => studentsApi.enrollments(group.id),
-    enabled: open,
   })
   const active = enrollments?.filter((e) => e.status === 'activo') ?? []
   const inactive = enrollments?.filter((e) => e.status !== 'activo') ?? []
@@ -163,12 +185,7 @@ export function GroupRosterDialog({
     )
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Estudiantes de {group.name}</DialogTitle>
-        </DialogHeader>
-
+    <div className="flex flex-col gap-3">
         <Button size="sm" className="w-fit" onClick={() => setCreating(true)}>
           <UserPlus className="h-4 w-4" /> Matricular estudiante
         </Button>
@@ -179,7 +196,7 @@ export function GroupRosterDialog({
           {active.map((e) => (
             <div key={e.id} className="rounded-md border px-3 py-2 text-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <Link to={`/student/${e.student_id}`} className="font-medium hover:underline" onClick={() => onOpenChange(false)}>
+                <Link to={`/student/${e.student_id}`} className="font-medium hover:underline" onClick={() => onNavigate?.()}>
                   {e.student.last_name} {e.student.first_name}
                   {e.student.document_number && (
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -244,7 +261,6 @@ export function GroupRosterDialog({
             onSaved={refresh}
           />
         )}
-      </DialogContent>
-    </Dialog>
+    </div>
   )
 }

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
-import { CalendarCheck, Copy, FileSpreadsheet, Plus, RefreshCw, Settings, Tags } from 'lucide-react'
+import { CalendarCheck, FileSpreadsheet, Plus, RefreshCw, Settings, Tags, Wallet } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -127,10 +127,10 @@ export function GradeSheet() {
             <CalendarCheck className="h-4 w-4" /> Tomar asistencia
           </Button>
           <Button variant="outline" size="sm" onClick={() => setCopiesOpen(true)}>
-            <Copy className="h-4 w-4" /> Pagos de copias
+            <Wallet className="h-4 w-4" /> Pagos
           </Button>
-          <Button variant="outline" size="sm" onClick={() => setExcelOpen(true)} disabled={sheet.sections.length === 0 || isClosed}>
-            <FileSpreadsheet className="h-4 w-4" /> Notas desde Excel
+          <Button variant="outline" size="sm" onClick={() => setExcelOpen(true)} disabled={sheet.sections.length === 0}>
+            <FileSpreadsheet className="h-4 w-4" /> Planilla en Excel
           </Button>
           <Button variant="outline" size="sm" onClick={() => setAddActivity({})} disabled={sheet.sections.length === 0 || isClosed}>
             <Plus className="h-4 w-4" /> Actividad
@@ -219,6 +219,7 @@ export function GradeSheet() {
         groupSubjectId={gsId}
         periodId={pId}
         fileLabel={`${course?.group?.name ?? ''}-${course?.subject?.name ?? ''}`}
+        locked={isClosed}
       />
 
       <ConventionsDialog open={conventionsOpen} onOpenChange={setConventionsOpen} />

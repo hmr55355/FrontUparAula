@@ -1,3 +1,4 @@
+import type { ResourceLoan } from '@/types/loans'
 import type { BehaviorAnnotation } from '@/types/behavior'
 import type { ParentCitation } from '@/types/citations'
 import type { ParentGuardian } from '@/types/parents'
@@ -32,6 +33,7 @@ export interface StudentFullProfile {
   parents: ParentGuardian[]
   citations: ParentCitation[]
   copy_payments: StudentCopyPayment[]
+  loans: ResourceLoan[]
 }
 
 export type DocumentType = 'TI' | 'CC' | 'CE' | 'PA' | 'PPT'

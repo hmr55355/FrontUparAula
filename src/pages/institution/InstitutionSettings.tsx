@@ -16,6 +16,7 @@ import { InlineNameEdit } from '@/components/ui/inline-name-edit'
 import { SearchableSelect, type SearchableSelectOption } from '@/components/ui/searchable-select'
 import { api } from '@/services/api/client'
 import { institutionsApi } from '@/services/api/institutions'
+import { groupsApi } from '@/services/api/groups'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { academicStructureApi } from '@/services/api/academicStructure'
 import { GradeLevelsPanel, gradeLevelsQueryKey } from '@/pages/institution/GradeLevelsPanel'
@@ -707,6 +708,37 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
       }),
   })
 
+  // Director de grupo y permiso de los docentes sobre los estudiantes.
+  const { data: institution } = useCurrentInstitution()
+  const { data: teachers } = useQuery({
+    queryKey: ['institutions', institutionId, 'teachers', 'assignment-picker'],
+    queryFn: () =>
+      api
+        .get<{ data: Teacher[] }>(`/institutions/${institutionId}/teachers`, { params: { page: 1 } })
+        .then((r) => r.data.data),
+    staleTime: 3 * 60 * 1000,
+  })
+  const activeTeachers = (teachers ?? []).filter((t) => t.status === 'active')
+
+  const setDirector = useMutation({
+    mutationFn: (vars: { id: number; directorId: number | null }) => groupsApi.setDirector(vars.id, vars.directorId),
+    onSuccess: () => {
+      toast.success('Director de grupo actualizado.')
+      invalidate()
+    },
+    onError: () => toast.error('No pudimos asignar el director de grupo.'),
+  })
+
+  const toggleTeacherPermission = useMutation({
+    mutationFn: (enabled: boolean) => api.put(`/institutions/${institutionId}`, { teachers_manage_students: enabled }),
+    onSuccess: () => {
+      toast.success('Permiso actualizado.')
+      queryClient.invalidateQueries({ queryKey: ['institutions', 'current'] })
+      queryClient.invalidateQueries({ queryKey: ['groups'] })
+    },
+    onError: () => toast.error('No pudimos cambiar el permiso.'),
+  })
+
   const visibleGroups = groups?.filter((g) => !shiftFilter || g.shift_id === shiftFilter)
 
   return (
@@ -715,6 +747,23 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
         <CardTitle>Grupos</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        <label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={!!institution?.teachers_manage_students}
+            disabled={toggleTeacherPermission.isPending}
+            onChange={(e) => toggleTeacherPermission.mutate(e.target.checked)}
+          />
+          <span>
+            <strong>Permitir que los docentes matriculen, retiren y trasladen estudiantes</strong> de los grupos que
+            dirigen o donde dictan clase.
+            <span className="block text-xs text-muted-foreground">
+              Desactivado, solo los administradores pueden hacerlo (página "Estudiantes").
+            </span>
+          </span>
+        </label>
+
         {gradeLevels?.length === 0 && (
           <p className="rounded-md bg-warning/10 px-3 py-2 text-sm text-warning">
             Primero crea los grados de tu institución en la pestaña "Grados".
@@ -794,6 +843,7 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
               <TableHead>Nombre</TableHead>
               <TableHead>Grado</TableHead>
               <TableHead>Jornada</TableHead>
+              <TableHead>Director(a) de grupo</TableHead>
               <TableHead>Estudiantes</TableHead>
               <TableHead />
             </TableRow>
@@ -832,6 +882,22 @@ function GroupsPanel({ institutionId }: { institutionId: number }) {
                     {shifts?.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </TableCell>
+                <TableCell>
+                  <select
+                    className="h-9 max-w-[180px] rounded-md border border-input bg-transparent px-2 text-sm"
+                    value={g.director_id ?? ''}
+                    disabled={setDirector.isPending}
+                    onChange={(e) => setDirector.mutate({ id: g.id, directorId: e.target.value ? Number(e.target.value) : null })}
+                    aria-label={`Director de ${g.name}`}
+                  >
+                    <option value="">Sin director</option>
+                    {activeTeachers.map((t) => (
+                      <option key={t.user_id} value={t.user_id}>
+                        {t.name}
                       </option>
                     ))}
                   </select>

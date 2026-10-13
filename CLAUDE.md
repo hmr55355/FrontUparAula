@@ -118,6 +118,18 @@ hora escritas por el docente).
 ### Fase 4 — seguridad de datos — hecha 2026-09-30
 - [x] 4.1 **`DELETE /groups/{id}` sin protección**: borra en cascada, sin papelera, cursos, matrículas, notas, anotaciones, citaciones, observaciones y copias. Negarse (422) si el grupo tiene estudiantes o cursos, y agregar la prueba. Recién ahí, poner el botón "Eliminar grupo" con confirmación.
 
+### Fase 6 — dirección de grupo, permisos y prematrícula — hecha y probada 2026-10-06
+- [x] 6.1 **Docentes gestionan estudiantes si la institución lo habilita** (`institutions.teachers_manage_students`, casilla en Institución → Grupos; `Group::studentsCanBeManagedBy`). Página **Estudiantes** (`/students`, en las dos vistas) con `GroupRoster`.
+- [x] 6.2 **Descargar la planilla** (notas y definitivas) en Excel/PDF desde la misma planilla: `GET /grades/export`, sin cola.
+- [x] 6.3 **Director de grupo** por grupo (`groups.director_id`, selector en Institución → Grupos).
+- [x] 6.4 Página **Dirección de grupo** (`/group-direction`): consolidado de todas las materias (promedio, puesto, materias en bajo, faltas) con Excel/PDF, y boletines de todo el grupo o de un estudiante en PDF. Solo el director o un admin (`Group::canBeOverseenBy`).
+- [x] 6.5 **Prematrícula** por grupo y año destino (tabla `pre_enrollments`): pendiente / confirmada / no continúa, grado de destino sugerido (el siguiente), observación y lista descargable con espacio para firma del acudiente.
+- [ ] 6.6 Ideas para el director, sin hacer: consolidado acumulado del año, control de entrega de boletines, observador del estudiante en PDF, y convertir la prematrícula en matrícula cuando existan los grupos del año nuevo.
+- [x] 6.7 **Préstamo de recursos** (`/loans`, menú "Préstamos" en las dos vistas; tabla `resource_loans`): a estudiantes o docentes, tipo de recurso con opciones rápidas (`LOAN_CATEGORIES`) y el recurso escrito a mano, cantidad, código, fecha de préstamo y de devolución. Cada docente maneja los que registró; el admin, todos. "Vencido" lo calcula el backend (`is_overdue`). Avisos de no devolución: en la página, en Inicio (`LoanAlertsBanner`), en el perfil del estudiante (aviso + pestaña Préstamos) y en "Mi perfil" del docente que debe (`BorrowedLoansCard`).
+
+Descargas directas: `utils/download.ts` (`downloadFromApi`) pide el archivo como blob
+con el token y usa el nombre de `Content-Disposition` (el backend la expone en CORS).
+
 ### Fase 5 — decidir con el usuario (columnas o rutas sin uso)
 - [ ] 5.1 `grades.is_excused`/`excused_reason`: el backend lo acepta, pero se solapa con las convenciones "sin nota".
 - [ ] 5.2 Notas de voz en comportamiento, observaciones y citaciones (el backend las soporta; hoy solo están en la bitácora).

@@ -13,6 +13,7 @@ import { copyChargesApi } from '@/services/api/copyCharges'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { useActiveCourseGroup } from '@/hooks/useActiveCourseGroup'
 import { NewChargeDialog } from '@/pages/copies/NewChargeDialog'
+import { chargeAmountLabel, chargeConcept } from '@/types/copies'
 import type { CopyCharge } from '@/types/copies'
 
 export function Copies() {
@@ -51,7 +52,7 @@ export function Copies() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">Control de copias</h1>
+        <h1 className="text-xl font-semibold">Pagos</h1>
         <Button size="sm" onClick={() => setDialogOpen(true)} disabled={!groupId}>
           <Plus className="h-4 w-4" /> Nuevo cobro
         </Button>
@@ -79,7 +80,7 @@ export function Copies() {
 
       <div className="flex flex-col gap-2">
         {!isLoading && (!charges || charges.length === 0) && (
-          <p className="text-sm text-muted-foreground">Sin cobros registrados para este grupo.</p>
+          <p className="text-sm text-muted-foreground">No has registrado cobros para este grupo. Cada docente ve solo los suyos.</p>
         )}
         {charges?.map((charge) => {
           const total = Number(charge.total_amount)
@@ -91,7 +92,12 @@ export function Copies() {
             <Card key={charge.id}>
               <CardContent className="flex flex-col gap-2 py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{charge.description}</span>
+                  <span className="font-medium">
+                    <span className="mr-2 rounded-full border px-2 py-0.5 text-xs font-normal text-muted-foreground">
+                      {chargeConcept(charge).icon} {chargeConcept(charge).label}
+                    </span>
+                    {charge.description}
+                  </span>
                   <div className="flex items-center gap-1">
                     <span className="text-sm text-muted-foreground">{charge.charge_date.slice(0, 10)}</span>
                     <button
@@ -105,8 +111,7 @@ export function Copies() {
                   </div>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {charge.quantity} copias × ${Number(charge.unit_price).toLocaleString('es-CO')} = $
-                  {total.toLocaleString('es-CO')}
+                  {chargeAmountLabel(charge)}
                 </p>
                 <p className="text-sm">
                   {charge.paid_count ?? 0} de {charge.total_students ?? 0} estudiantes han pagado — $

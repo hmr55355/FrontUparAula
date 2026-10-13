@@ -7,6 +7,7 @@ import { api } from '@/services/api/client'
 import { institutionsApi } from '@/services/api/institutions'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { navItemsFor } from '@/config/navItems'
+import { LoanAlertsBanner } from '@/pages/loans/LoanAlerts'
 import { useActivePeriod } from '@/hooks/useActivePeriod'
 import { localDateString, periodForDate } from '@/utils/dateHelpers'
 
@@ -85,6 +86,8 @@ export function AdminDashboard() {
         <h1 className="text-xl font-semibold">{institution?.name}</h1>
         <p className="text-sm text-muted-foreground">Vista Administrador</p>
       </div>
+
+      <LoanAlertsBanner />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map(({ label, value, icon: Icon }) => (

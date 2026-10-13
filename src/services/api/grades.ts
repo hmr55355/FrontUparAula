@@ -31,11 +31,6 @@ export const gradesApi = {
   adjustSectionFinal: (id: number, payload: { section_final: number; adjustment_reason: string }) =>
     api.put<{ data: SectionFinal }>(`/section-finals/${id}/adjust`, payload).then((r) => r.data.data),
 
-  excelTemplate: (groupSubjectId: number, periodId: number) =>
-    api
-      .get<Blob>('/grades/excel-template', { params: { groupSubjectId, periodId }, responseType: 'blob' })
-      .then((r) => r.data),
-
   excelImport: (groupSubjectId: number, periodId: number, file: File) => {
     const form = new FormData()
     form.append('groupSubjectId', String(groupSubjectId))

@@ -40,7 +40,9 @@ export function useReportGeneration() {
           toast.error('El reporte está tardando más de lo esperado. Intenta de nuevo en unos minutos.')
           return
         }
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+        // El backend ya genera el reporte en la misma petición, así que la primera
+        // consulta suele traerlo listo; solo se espera si sigue en proceso.
+        if (polls > 0) await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
         if (!mountedRef.current) return
         const report = await reportsApi.status(id)
         status = report.status

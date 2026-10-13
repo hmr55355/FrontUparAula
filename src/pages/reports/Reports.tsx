@@ -31,7 +31,8 @@ const CARDS: Array<{
   {
     key: 'student_bulletin',
     title: 'Boletín individual',
-    description: 'PDF con notas de todas las materias, asistencia, comportamiento y observaciones de un estudiante.',
+    description:
+      'PDF con notas, asistencia, comportamiento y observaciones de un estudiante. Con todas las materias para el administrador y el director de grupo; los demás docentes, solo las suyas.',
     icon: FileText,
     views: ['admin', 'teacher'],
   },
@@ -58,7 +59,7 @@ const CARDS: Array<{
   },
   {
     key: 'copies_summary',
-    title: 'Resumen general de copias',
+    title: 'Resumen general de pagos',
     description: 'Tabla cruzada de todos los cobros del grupo/período con saldos por estudiante.',
     icon: Receipt,
     views: ['teacher'],

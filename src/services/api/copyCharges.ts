@@ -1,9 +1,10 @@
 import { api } from '@/services/api/client'
-import type { CopyCharge, CopyChargePaymentsResponse, PaymentStatus } from '@/types/copies'
+import type { ChargeConcept, CopyCharge, CopyChargePaymentsResponse, PaymentStatus } from '@/types/copies'
 
 export interface CopyChargePayload {
   group_id: number
   period_id?: number
+  concept?: ChargeConcept
   description: string
   quantity: number
   unit_price: number

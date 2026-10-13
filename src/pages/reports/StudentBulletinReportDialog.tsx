@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Label } from '@/components/ui/label'
 import { SearchableSelect } from '@/components/ui/searchable-select'
 import { institutionsApi } from '@/services/api/institutions'
+import type { Group } from '@/types'
 import { periodsApi } from '@/services/api/periods'
 import { groupsApi } from '@/services/api/groups'
 import { reportsApi } from '@/services/api/reports'
@@ -27,9 +28,12 @@ export function StudentBulletinReportDialog({
   const [studentId, setStudentId] = useState<number | ''>('')
   const { generate, isGenerating } = useReportGeneration()
 
-  const { data: groups } = useQuery({
-    queryKey: ['groups', institution?.id],
-    queryFn: () => institutionsApi.groups(institution!.id),
+  // El administrador elige entre todos los grupos; un docente, entre los suyos (los que
+  // dicta o dirige): el backend rechaza los demás.
+  const isAdmin = institution?.my_role === 'admin'
+  const { data: groups } = useQuery<Group[]>({
+    queryKey: isAdmin ? ['groups', institution?.id] : ['groups', 'mine'],
+    queryFn: () => (isAdmin ? institutionsApi.groups(institution!.id) : groupsApi.mine()),
     enabled: !!institution && open,
   })
 

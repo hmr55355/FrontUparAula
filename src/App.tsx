@@ -17,6 +17,9 @@ import { RoleGuard } from '@/components/layout/RoleGuard'
 // Todo lo que vive detrás de PrivateRoute se carga solo después de iniciar
 // sesión — evita que el bundle inicial (landing/login, lo primero que baja
 // cualquier visitante) cargue las ~18 páginas de la app completa de una vez.
+const ResourceLoans = lazy(() => import('@/pages/loans/ResourceLoans').then((m) => ({ default: m.ResourceLoans })))
+const Students = lazy(() => import('@/pages/students/Students').then((m) => ({ default: m.Students })))
+const GroupDirection = lazy(() => import('@/pages/director/GroupDirection').then((m) => ({ default: m.GroupDirection })))
 const Dashboard = lazy(() => import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })))
 const Profile = lazy(() => import('@/pages/Profile').then((m) => ({ default: m.Profile })))
 const MyCourses = lazy(() => import('@/pages/MyCourses').then((m) => ({ default: m.MyCourses })))
@@ -123,6 +126,9 @@ function App() {
                 <Route path="/observations" element={<TeacherViewGuard><Observations /></TeacherViewGuard>} />
                 {/* En las dos vistas: el admin llega desde "Estudiantes" del grupo para ver y editar datos. */}
                 <Route path="/student/:id" element={<StudentProfile />} />
+                <Route path="/students" element={<Students />} />
+                <Route path="/loans" element={<ResourceLoans />} />
+                <Route path="/group-direction" element={<GroupDirection />} />
                 <Route path="/homeworks" element={<TeacherViewGuard><Homeworks /></TeacherViewGuard>} />
                 <Route path="/homeworks/:homeworkId" element={<TeacherViewGuard><HomeworkDeliveries /></TeacherViewGuard>} />
                 <Route path="/plans" element={<TeacherViewGuard><Plans /></TeacherViewGuard>} />

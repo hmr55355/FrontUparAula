@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { copyChargesApi } from '@/services/api/copyCharges'
-import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
+import { chargeAmountLabel, chargeConcept, PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import type { CopyChargeStudent } from '@/types/copies'
 import { PaymentDialog } from '@/pages/copies/PaymentDialog'
 import { NewChargeDialog } from '@/pages/copies/NewChargeDialog'
@@ -58,7 +58,7 @@ export function CopyChargeDetail() {
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
       <div>
         <Link to="/copies" className="flex items-center gap-1 text-sm text-primary hover:underline">
-          <ArrowLeft className="h-4 w-4" /> Volver a copias
+          <ArrowLeft className="h-4 w-4" /> Volver a pagos
         </Link>
         <div className="mt-1 flex items-center justify-between gap-2">
           <h1 className="text-xl font-semibold">{data.charge.description}</h1>
@@ -67,8 +67,8 @@ export function CopyChargeDetail() {
           </Button>
         </div>
         <p className="text-sm text-muted-foreground">
-          {data.charge.quantity} copias × ${Number(data.charge.unit_price).toLocaleString('es-CO')} = $
-          {Number(data.charge.total_amount).toLocaleString('es-CO')} — {data.charge.charge_date.slice(0, 10)}
+          {chargeConcept(data.charge).icon} {chargeConcept(data.charge).label} · {chargeAmountLabel(data.charge)} —{' '}
+          {data.charge.charge_date.slice(0, 10)}
         </p>
         {data.charge.notes && <p className="mt-1 text-sm">{data.charge.notes}</p>}
       </div>

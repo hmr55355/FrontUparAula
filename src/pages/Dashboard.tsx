@@ -16,6 +16,7 @@ import { useActiveShift } from '@/hooks/useActiveShift'
 import { PreviousClassPlanDialog } from '@/pages/plans/PreviousClassPlanDialog'
 import { navItemsFor } from '@/config/navItems'
 import { AdminDashboard } from '@/pages/AdminDashboard'
+import { LoanAlertsBanner } from '@/pages/loans/LoanAlerts'
 import type { GroupSubject } from '@/types'
 import { localDateString } from '@/utils/dateHelpers'
 
@@ -39,6 +40,7 @@ function TeacherDashboard() {
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
+      <LoanAlertsBanner />
       <CurrentClassCard />
 
       <div>

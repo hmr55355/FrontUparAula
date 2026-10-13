@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { copyChargesApi } from '@/services/api/copyCharges'
-import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
+import { chargeAmountLabel, chargeConcept, PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import type { CopyChargeStudent } from '@/types/copies'
 import { PaymentDialog } from '@/pages/copies/PaymentDialog'
 import { NewChargeDialog } from '@/pages/copies/NewChargeDialog'
@@ -56,7 +56,7 @@ function ChargeList({
   onSelect: (id: number) => void
 }) {
   const [creating, setCreating] = useState(false)
-  // Sin filtro de período por defecto: un cobro de copias suele no estar atado a un período
+  // Sin filtro de período por defecto: un cobro suele no estar atado a un período
   // específico, igual que la vista "Todos los períodos" de /copies.
   const { data: charges, isLoading } = useQuery({
     queryKey: ['copy-charges', groupId, undefined],
@@ -66,7 +66,7 @@ function ChargeList({
   return (
     <>
       <DialogHeader>
-        <DialogTitle>Pagos de copias</DialogTitle>
+        <DialogTitle>Pagos</DialogTitle>
       </DialogHeader>
 
       <Button size="sm" variant="outline" className="w-fit" onClick={() => setCreating(true)}>
@@ -96,7 +96,12 @@ function ChargeList({
             >
               <CardContent className="flex flex-col gap-2 py-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-medium">{charge.description}</span>
+                  <span className="font-medium">
+                    <span className="mr-2 text-xs font-normal text-muted-foreground">
+                      {chargeConcept(charge).icon} {chargeConcept(charge).label}
+                    </span>
+                    {charge.description}
+                  </span>
                   <span className="text-sm text-muted-foreground">{charge.charge_date.slice(0, 10)}</span>
                 </div>
                 <p className="text-sm">
@@ -157,7 +162,7 @@ function ChargeDetail({ chargeId, onBack }: { chargeId: number; onBack: () => vo
         </Button>
         <DialogTitle>{data.charge.description}</DialogTitle>
         <p className="text-sm text-muted-foreground">
-          {data.charge.quantity} copias × ${Number(data.charge.unit_price).toLocaleString('es-CO')} = $
+          {chargeConcept(data.charge).icon} {chargeConcept(data.charge).label} · {chargeAmountLabel(data.charge)}
           {Number(data.charge.total_amount).toLocaleString('es-CO')}
         </p>
       </DialogHeader>

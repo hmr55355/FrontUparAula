@@ -2,19 +2,24 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
-import { Download, Upload } from 'lucide-react'
+import { FileSpreadsheet, FileText, Upload } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { gradesApi } from '@/services/api/grades'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
+import { downloadFromApi } from '@/utils/download'
 
 type ImportResult = { saved: number; skipped: number; errors: string[] }
+type Download = 'blank' | 'excel' | 'pdf'
 
 /**
- * Cargue de notas desde Excel en dos pasos: descargar la plantilla del curso y
- * período (ya trae los estudiantes y una columna por actividad) y subirla llena.
- * Las celdas vacías se omiten, así que subir la plantilla a medias no borra notas.
+ * La planilla en Excel, todo en un lugar:
+ * - "Sin notas": plantilla del curso y período (estudiantes y una columna por
+ *   actividad) para llenarla y subirla aquí mismo.
+ * - "Con notas": la planilla completa con notas y definitivas, para imprimir o
+ *   archivar (también en PDF). Esa no se puede volver a subir.
+ * Al subir, las celdas vacías se omiten: una plantilla a medias no borra notas.
  */
 export function GradeExcelDialog({
   open,
@@ -22,33 +27,38 @@ export function GradeExcelDialog({
   groupSubjectId,
   periodId,
   fileLabel,
+  locked = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupSubjectId: number
   periodId: number
   fileLabel: string
+  /** Período cerrado: se puede descargar, pero no subir notas. */
+  locked?: boolean
 }) {
   const queryClient = useQueryClient()
-  const [downloading, setDownloading] = useState(false)
+  const [downloading, setDownloading] = useState<Download | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
 
-  const download = async () => {
-    setDownloading(true)
+  const download = async (kind: Download) => {
+    setDownloading(kind)
     try {
-      const blob = await gradesApi.excelTemplate(groupSubjectId, periodId)
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `notas-${fileLabel}.xlsx`
-      link.click()
-      URL.revokeObjectURL(url)
+      if (kind === 'blank') {
+        await downloadFromApi('/grades/excel-template', { groupSubjectId, periodId }, `planilla-sin-notas-${fileLabel}.xlsx`)
+      } else {
+        await downloadFromApi(
+          '/grades/export',
+          { groupSubjectId, periodId, format: kind },
+          `planilla-${fileLabel}.${kind === 'pdf' ? 'pdf' : 'xlsx'}`
+        )
+      }
     } catch {
-      toast.error('No pudimos generar la plantilla.')
+      toast.error('No pudimos generar el archivo.')
     } finally {
-      setDownloading(false)
+      setDownloading(null)
     }
   }
 
@@ -73,31 +83,67 @@ export function GradeExcelDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Cargar notas desde Excel</DialogTitle>
+          <DialogTitle>Planilla en Excel</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
-            <p className="text-sm font-medium">1. Descarga la plantilla</p>
-            <p className="text-sm text-muted-foreground">
-              Trae tus estudiantes y una columna por cada actividad de este período. Llena solo las notas (de 1.0 a la
-              nota máxima) o la abreviatura de una de tus convenciones (NP, ✓…, listadas en la hoja "Convenciones");
-              no cambies los nombres ni el orden de las filas.
-            </p>
-            <Button variant="outline" size="sm" className="w-fit" onClick={download} disabled={downloading}>
-              <Download className="h-4 w-4" /> {downloading ? 'Generando...' : 'Descargar plantilla'}
+            <p className="text-sm font-medium">Descargar</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => download('blank')}
+                disabled={!!downloading}
+                className="flex flex-col gap-1 rounded-md border p-3 text-left hover:border-primary hover:bg-primary/5 disabled:opacity-60"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  {downloading === 'blank' ? 'Generando...' : 'Planilla sin notas'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Tus estudiantes y una columna por actividad, para llenarla y subirla aquí.
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => download('excel')}
+                disabled={!!downloading}
+                className="flex flex-col gap-1 rounded-md border p-3 text-left hover:border-primary hover:bg-primary/5 disabled:opacity-60"
+              >
+                <span className="flex items-center gap-2 text-sm font-semibold">
+                  <FileSpreadsheet className="h-4 w-4 text-primary" />
+                  {downloading === 'excel' ? 'Generando...' : 'Planilla con notas'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Todas las notas y definitivas del período, para imprimir o archivar.
+                </span>
+              </button>
+            </div>
+            <Button variant="ghost" size="sm" className="w-fit" onClick={() => download('pdf')} disabled={!!downloading}>
+              <FileText className="h-4 w-4" /> {downloading === 'pdf' ? 'Generando...' : 'Planilla con notas en PDF'}
             </Button>
           </div>
 
           <div className="flex flex-col gap-2 border-t pt-4">
-            <p className="text-sm font-medium">2. Sube la plantilla con las notas</p>
-            <p className="text-sm text-muted-foreground">
-              Las celdas vacías no se tocan. Si una actividad ya tenía nota, se reemplaza por la del archivo.
-            </p>
-            <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-            <Button size="sm" className="w-fit" onClick={upload} disabled={!file || importing}>
-              <Upload className="h-4 w-4" /> {importing ? 'Cargando...' : 'Cargar notas'}
-            </Button>
+            <p className="text-sm font-medium">Subir notas</p>
+            {locked ? (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                🔒 Este período está cerrado: no se pueden subir notas.
+              </p>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Sube la <strong>planilla sin notas</strong> ya llena (la "con notas" no sirve para subir). En cada
+                  celda va la nota (de 1.0 a la nota máxima) o la abreviatura de una de tus convenciones (NP, ✓…, en la
+                  hoja "Convenciones"). No cambies los nombres ni el orden de las filas. Las celdas vacías no se
+                  tocan; si una actividad ya tenía nota, se reemplaza por la del archivo.
+                </p>
+                <input type="file" accept=".xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                <Button size="sm" className="w-fit" onClick={upload} disabled={!file || importing}>
+                  <Upload className="h-4 w-4" /> {importing ? 'Cargando...' : 'Cargar notas'}
+                </Button>
+              </>
+            )}
           </div>
 
           {result && (

@@ -13,6 +13,7 @@ import { api } from '@/services/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { useAvatarUrl } from '@/hooks/useAvatarUrl'
 import { UserCircle } from 'lucide-react'
+import { BorrowedLoansCard } from '@/pages/loans/LoanAlerts'
 
 const schema = z.object({
   name: z.string().min(2, 'Requerido'),
@@ -50,6 +51,7 @@ export function Profile() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
       <AvatarCard />
+      <BorrowedLoansCard />
       <Card>
         <CardHeader>
           <CardTitle>Mi perfil</CardTitle>

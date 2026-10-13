@@ -10,14 +10,18 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { copyChargesApi } from '@/services/api/copyCharges'
 import { localDateString } from '@/utils/dateHelpers'
-import type { CopyCharge } from '@/types/copies'
+import { CHARGE_CONCEPTS } from '@/types/copies'
+import type { ChargeConcept, CopyCharge } from '@/types/copies'
+import { cn } from '@/lib/utils'
 
 function today() {
   return localDateString()
 }
 
 /**
- * Crear un cobro de copias, o con `charge` editarlo y eliminarlo. Si al editar
+ * Crear un cobro (copias, materiales, colaboración, salida…), o con `charge`
+ * editarlo y eliminarlo. Copias se calcula como cantidad × precio por copia; los
+ * demás conceptos son un valor por estudiante (cantidad 1). Si al editar
  * cambia el total, el backend reevalúa quién queda pagado o con pago parcial.
  */
 export function NewChargeDialog({
@@ -37,6 +41,8 @@ export function NewChargeDialog({
 }) {
   const queryClient = useQueryClient()
   const isEdit = !!charge
+  const [concept, setConcept] = useState<ChargeConcept>(charge?.concept ?? 'copias')
+  const isCopies = concept === 'copias'
   const [description, setDescription] = useState(charge?.description ?? '')
   const [quantity, setQuantity] = useState(charge ? String(charge.quantity) : '1')
   const [unitPrice, setUnitPrice] = useState(charge ? String(Number(charge.unit_price)) : '')
@@ -44,9 +50,12 @@ export function NewChargeDialog({
   const [notes, setNotes] = useState(charge?.notes ?? '')
   const [saving, setSaving] = useState(false)
 
-  const total = (Number(quantity) || 0) * (Number(unitPrice) || 0)
+  // Fuera de copias no hay "cantidad": el valor es por estudiante.
+  const effectiveQuantity = isCopies ? Number(quantity) || 0 : 1
+  const total = effectiveQuantity * (Number(unitPrice) || 0)
 
   const reset = () => {
+    setConcept('copias')
     setDescription('')
     setQuantity('1')
     setUnitPrice('')
@@ -85,8 +94,8 @@ export function NewChargeDialog({
   }
 
   const save = async () => {
-    if (!description || !quantity || !unitPrice) {
-      toast.error('Completa la descripción, cantidad y precio unitario.')
+    if (!description.trim() || !unitPrice || (isCopies && !quantity)) {
+      toast.error(isCopies ? 'Completa la descripción, la cantidad y el precio por copia.' : 'Completa la descripción y el valor.')
       return
     }
 
@@ -94,8 +103,9 @@ export function NewChargeDialog({
     if (charge) {
       try {
         await copyChargesApi.update(charge.id, {
+          concept,
           description,
-          quantity: Number(quantity),
+          quantity: effectiveQuantity,
           unit_price: Number(unitPrice),
           charge_date: chargeDate,
           notes: notes || undefined,
@@ -118,8 +128,9 @@ export function NewChargeDialog({
       await copyChargesApi.create({
         group_id: groupId,
         period_id: periodId,
+        concept,
         description,
-        quantity: Number(quantity),
+        quantity: effectiveQuantity,
         unit_price: Number(unitPrice),
         charge_date: chargeDate,
         notes: notes || undefined,
@@ -144,28 +155,61 @@ export function NewChargeDialog({
 
         <div className="flex flex-col gap-3">
           <div className="space-y-1">
-            <Label>Descripción del material</Label>
+            <Label>Concepto</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {(Object.keys(CHARGE_CONCEPTS) as ChargeConcept[]).map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setConcept(key)}
+                  className={cn(
+                    'rounded-full border px-2.5 py-1 text-sm',
+                    concept === key ? 'border-primary bg-primary text-primary-foreground' : 'hover:bg-muted'
+                  )}
+                >
+                  {CHARGE_CONCEPTS[key].icon} {CHARGE_CONCEPTS[key].label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Descripción</Label>
             <Input
-              placeholder='Ej: "Guía de Trigonometría Período 2"'
+              placeholder={`Ej: "${CHARGE_CONCEPTS[concept].example}"`}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Cantidad de copias</Label>
-              <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          {isCopies ? (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Cantidad de copias</Label>
+                <Input type="number" min="1" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>Precio por copia (COP)</Label>
+                <Input type="number" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} />
+              </div>
             </div>
+          ) : (
             <div className="space-y-1">
-              <Label>Precio por copia (COP)</Label>
+              <Label>Valor por estudiante (COP)</Label>
               <Input type="number" min="0" value={unitPrice} onChange={(e) => setUnitPrice(e.target.value)} />
             </div>
-          </div>
+          )}
 
           <div className="rounded-md bg-muted px-3 py-2 text-sm font-semibold">
-            Total: ${total.toLocaleString('es-CO')}
+            Cada estudiante paga: ${total.toLocaleString('es-CO')}
           </div>
+
+          {!isEdit && (
+            <p className="text-xs text-muted-foreground">
+              En colegios oficiales estos aportes son voluntarios (gratuidad, Decreto 4807 de 2011): no pagar no puede
+              afectar notas ni matrícula. Usa "Exonerar" para quien no vaya a aportar.
+            </p>
+          )}
 
           <div className="space-y-1">
             <Label>Fecha del cobro</Label>

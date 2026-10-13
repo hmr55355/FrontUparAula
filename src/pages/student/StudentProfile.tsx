@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Pencil, Plus, UserCircle } from 'lucide-react'
+import { AlertTriangle, Pencil, Plus, UserCircle } from 'lucide-react'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -14,13 +14,17 @@ import { getGradeColor } from '@/utils/gradeHelpers'
 import { BEHAVIOR_CATEGORY_LABELS, BEHAVIOR_TYPE_BADGE, BEHAVIOR_TYPE_LABELS } from '@/types/behavior'
 import { OBSERVATION_TYPE_LABELS } from '@/types/observations'
 import { CITATION_STATUS_BADGE, CITATION_STATUS_LABELS } from '@/types/citations'
-import { PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
+import { chargeConcept, PAYMENT_STATUS_BADGE, PAYMENT_STATUS_LABELS } from '@/types/copies'
 import { NewObservationDialog } from '@/pages/student/NewObservationDialog'
 import { NewCitationDialog } from '@/pages/citations/NewCitationDialog'
 import { ParentDialog } from '@/pages/student/ParentDialog'
 import { StudentFormDialog } from '@/pages/student/StudentFormDialog'
 import { useQueryClient } from '@tanstack/react-query'
 import { RELATIONSHIP_LABELS } from '@/types/parents'
+import { LoanDialog, ReturnLoanDialog } from '@/pages/loans/LoanDialog'
+import { useAuthStore } from '@/store/authStore'
+import { RETURN_CONDITION_LABELS, loanCategory, loanStatusBadge } from '@/types/loans'
+import type { ResourceLoan } from '@/types/loans'
 import type { ParentGuardian } from '@/types/parents'
 
 export function StudentProfile() {
@@ -35,6 +39,9 @@ export function StudentProfile() {
   // null = cerrado, 'new' = agregar, objeto = editar ese acudiente.
   const [parentDialog, setParentDialog] = useState<ParentGuardian | 'new' | null>(null)
   const [editingStudent, setEditingStudent] = useState(false)
+  const [lending, setLending] = useState(false)
+  const [returningLoan, setReturningLoan] = useState<ResourceLoan | null>(null)
+  const userId = useAuthStore((s) => s.user?.id)
   // Editar datos personales es de administradores (el backend lo exige), en cualquier vista.
   const isAdmin = institution?.my_role === 'admin'
   const queryClient = useQueryClient()
@@ -51,6 +58,8 @@ export function StudentProfile() {
 
   const { student } = profile
   const groupName = profile.grades[0]?.group_name
+  const overdueLoans = profile.loans.filter((l) => l.is_overdue)
+  const pendingLoans = profile.loans.filter((l) => l.status === 'prestado').length
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
@@ -95,6 +104,19 @@ export function StudentProfile() {
         />
       )}
 
+      {overdueLoans.length > 0 && (
+        <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <strong>No ha devuelto {overdueLoans.length === 1 ? 'un recurso prestado' : `${overdueLoans.length} recursos prestados`}:</strong>{' '}
+            {overdueLoans
+              .map((l) => `${l.item_name} (debía devolverlo el ${l.due_date.slice(0, 10)}${l.lender ? `, lo entregó ${l.lender.name}` : ''})`)
+              .join('; ')}
+            .
+          </span>
+        </div>
+      )}
+
       <Tabs defaultValue="grades">
         <TabsList className="h-auto flex-wrap gap-1">
           <TabsTrigger value="grades">Notas</TabsTrigger>
@@ -102,7 +124,10 @@ export function StudentProfile() {
           <TabsTrigger value="behavior">Comportamiento</TabsTrigger>
           <TabsTrigger value="observations">Observaciones</TabsTrigger>
           <TabsTrigger value="parents">Acudientes</TabsTrigger>
-          <TabsTrigger value="copies">Copias</TabsTrigger>
+          <TabsTrigger value="copies">Pagos</TabsTrigger>
+          <TabsTrigger value="loans">
+            Préstamos{pendingLoans > 0 && ` (${pendingLoans})`}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="grades" className="flex flex-col gap-2">
@@ -254,12 +279,14 @@ export function StudentProfile() {
         </TabsContent>
 
         <TabsContent value="copies" className="flex flex-col gap-2">
-          {profile.copy_payments.length === 0 && <EmptyState text="Sin cobros de copias registrados." />}
+          {profile.copy_payments.length === 0 && <EmptyState text="Sin cobros registrados." />}
           {profile.copy_payments.map((p) => (
             <Card key={p.id}>
               <CardContent className="flex items-center justify-between py-3">
                 <div>
-                  <p className="font-medium">{p.copy_charge?.description}</p>
+                  <p className="font-medium">
+                    {chargeConcept(p.copy_charge).icon} {p.copy_charge?.description}
+                  </p>
                   <p className="text-sm text-muted-foreground">
                     {p.copy_charge?.charge_date.slice(0, 10)} · ${Number(p.copy_charge?.total_amount ?? 0).toLocaleString('es-CO')}
                   </p>
@@ -269,7 +296,53 @@ export function StudentProfile() {
             </Card>
           ))}
         </TabsContent>
+
+        <TabsContent value="loans" className="flex flex-col gap-2">
+          <Button size="sm" className="w-fit" onClick={() => setLending(true)}>
+            <Plus className="h-4 w-4" /> Prestar un recurso
+          </Button>
+          {profile.loans.length === 0 && <EmptyState text="No se le han prestado recursos." />}
+          {profile.loans.map((loan) => {
+            const badge = loanStatusBadge(loan)
+            return (
+              <Card key={loan.id} className={loan.is_overdue ? 'border-destructive/50' : undefined}>
+                <CardContent className="flex flex-wrap items-center justify-between gap-2 py-3">
+                  <div>
+                    <p className="font-medium">
+                      {loanCategory(loan).icon} {loan.quantity > 1 && `${loan.quantity} × `}
+                      {loan.item_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {loan.loan_date.slice(0, 10)} · Devolver el {loan.due_date.slice(0, 10)}
+                      {loan.returned_at && ` · Devuelto el ${loan.returned_at.slice(0, 10)}`}
+                      {loan.return_condition && ` (${RETURN_CONDITION_LABELS[loan.return_condition].toLowerCase()})`}
+                      {loan.lender && ` · Entregó: ${loan.lender.name}`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                    {loan.status === 'prestado' && (isAdmin || loan.registered_by === userId) && (
+                      <Button size="sm" variant="outline" onClick={() => setReturningLoan(loan)}>
+                        Registrar devolución
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </TabsContent>
       </Tabs>
+      {lending && (
+        <LoanDialog
+          open
+          onOpenChange={setLending}
+          presetStudent={{ id: student.id, name: `${student.last_name} ${student.first_name}` }}
+        />
+      )}
+      {returningLoan && (
+        <ReturnLoanDialog key={returningLoan.id} open onOpenChange={(o) => !o && setReturningLoan(null)} loan={returningLoan} />
+      )}
 
       <NewObservationDialog
         open={observationDialogOpen}

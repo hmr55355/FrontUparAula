@@ -50,7 +50,7 @@ export function CopiesSummaryReportDialog({
     if (!groupId) return
     generate(
       () => copyChargesApi.summary({ group_id: groupId, period_id: periodId || undefined }),
-      'resumen-general-de-copias'
+      'resumen-general-de-pagos'
     )
   }
 
@@ -58,7 +58,7 @@ export function CopiesSummaryReportDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Resumen general de copias</DialogTitle>
+          <DialogTitle>Resumen general de pagos</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">

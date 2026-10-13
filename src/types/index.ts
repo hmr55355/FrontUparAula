@@ -32,6 +32,8 @@ export interface Institution {
   logo: string | null
   grading_scale: '1_to_10' | '1_to_5'
   min_passing_grade: string
+  /** Si los docentes pueden matricular, retirar y trasladar estudiantes de sus grupos. */
+  teachers_manage_students?: boolean
   /** Escala de valoración institucional (SIEE), de la nota más baja a la más alta. */
   performance_levels?: PerformanceLevel[]
   my_role?: InstitutionRole
@@ -92,6 +94,18 @@ export interface Group {
   section: string | null
   student_count: number
   shift?: { id: number; name: string } | null
+  /** Director de grupo (docente a cargo del curso). */
+  director_id?: number | null
+  director?: { id: number; name: string } | null
+}
+
+/** Grupo con lo que el usuario puede hacer en él (GET /groups/mine). */
+export interface MyGroup extends Group {
+  is_director: boolean
+  /** Ver el consolidado, boletines y prematrícula: admin o director del grupo. */
+  can_oversee: boolean
+  /** Matricular, retirar y trasladar: admin, o docentes si la institución lo habilitó. */
+  can_manage_students: boolean
 }
 
 /** Grado escolar (Sexto…Once). */
