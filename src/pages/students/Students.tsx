@@ -32,8 +32,8 @@ export function Students() {
       <div>
         <h1 className="text-xl font-semibold">Estudiantes</h1>
         <p className="text-sm text-muted-foreground">
-          Matricula, traslada o retira estudiantes. Nada se borra: los retirados y trasladados quedan con su fecha y motivo,
-          y dejan de salir en las listas de clase.
+          Matricula, traslada o retira estudiantes: los retirados y trasladados quedan con su fecha y motivo, y dejan de
+          salir en las listas de clase. La papelera elimina del todo y es solo para registros hechos por error.
         </p>
       </div>
 

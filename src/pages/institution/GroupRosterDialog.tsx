@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
 import { Link } from 'react-router-dom'
-import { UserPlus } from 'lucide-react'
+import { Trash2, UserPlus } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { studentsApi } from '@/services/api/students'
+import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { StudentFormDialog } from '@/pages/student/StudentFormDialog'
 import { localDateString } from '@/utils/dateHelpers'
 import type { Group } from '@/types'
@@ -28,8 +29,8 @@ function errorText(error: unknown, fallback: string) {
 
 /**
  * Estudiantes de un grupo (solo admin): matricular uno nuevo, editar datos,
- * trasladar a otro grupo del mismo año, retirar y volver a matricular. Nada se
- * borra: los retirados y trasladados quedan listados con su fecha y motivo.
+ * trasladar a otro grupo del mismo año, retirar, volver a matricular y eliminar
+ * (solo para registros hechos por error). Retirar y trasladar no borran nada: los retirados y trasladados quedan listados con su fecha y motivo.
  */
 export function GroupRosterDialog({
   open,
@@ -66,6 +67,8 @@ export function GroupRoster({
   onNavigate?: () => void
 }) {
   const queryClient = useQueryClient()
+  const { data: institution } = useCurrentInstitution()
+  const isAdmin = institution?.my_role === 'admin'
   const [creating, setCreating] = useState(false)
   const [editing, setEditing] = useState<Student | null>(null)
   const [action, setAction] = useState<Action>(null)
@@ -132,6 +135,32 @@ export function GroupRoster({
       toast.error(errorText(error, 'No pudimos completar la acción.'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  // Para registros hechos por error. Si ya tiene notas u otros registros, el backend
+  // responde 409 con el detalle y se pide una segunda confirmación (solo admin).
+  const remove = async (enrollment: Enrollment) => {
+    const name = `${enrollment.student.first_name} ${enrollment.student.last_name}`
+    if (
+      !window.confirm(
+        `¿Eliminar a ${name}? Es para registros hechos por error: se borra del todo y no se puede deshacer. Si se fue del colegio, usa "Retirar".`
+      )
+    )
+      return
+    try {
+      try {
+        await studentsApi.remove(enrollment.student_id)
+      } catch (error) {
+        const data = axios.isAxiosError(error) && error.response?.status === 409 ? error.response.data : null
+        if (!data?.requires_confirmation) throw error
+        if (!window.confirm(`${data.message}\n\n¿Eliminar a ${name} de todas formas?`)) return
+        await studentsApi.remove(enrollment.student_id, true)
+      }
+      toast.success(`${name} fue eliminado.`)
+      refresh()
+    } catch (error) {
+      toast.error(errorText(error, 'No pudimos eliminar al estudiante.'))
     }
   }
 
@@ -214,6 +243,16 @@ export function GroupRoster({
                   <Button size="sm" variant="ghost" className="text-destructive" onClick={() => openAction('withdraw', e)}>
                     Retirar
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="text-destructive"
+                    title="Eliminar (registro hecho por error)"
+                    aria-label={`Eliminar a ${e.student.first_name} ${e.student.last_name}`}
+                    onClick={() => remove(e)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               {actionForm(e)}
@@ -236,11 +275,25 @@ export function GroupRoster({
                         {e.withdrawal_reason && ` · ${e.withdrawal_reason}`}
                       </span>
                     </span>
-                    {e.status === 'retirado' && (
-                      <Button size="sm" variant="ghost" onClick={() => openAction('enroll', e)}>
-                        Volver a matricular
-                      </Button>
-                    )}
+                    <div className="flex gap-1">
+                      {e.status === 'retirado' && (
+                        <Button size="sm" variant="ghost" onClick={() => openAction('enroll', e)}>
+                          Volver a matricular
+                        </Button>
+                      )}
+                      {isAdmin && e.status === 'retirado' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-destructive"
+                          title="Eliminar (registro hecho por error)"
+                          aria-label={`Eliminar a ${e.student.first_name} ${e.student.last_name}`}
+                          onClick={() => remove(e)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {actionForm(e)}
                 </div>

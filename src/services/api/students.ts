@@ -23,4 +23,7 @@ export const studentsApi = {
 
   enroll: (id: number, payload: { group_id: number; enrollment_date: string }) =>
     api.post(`/students/${id}/enroll`, payload),
+
+  /** Elimina del todo (registros hechos por error). Con registros responde 409 y pide `confirm`. */
+  remove: (id: number, confirm = false) => api.delete(`/students/${id}`, { params: confirm ? { confirm: 1 } : undefined }),
 }
