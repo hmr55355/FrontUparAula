@@ -1,5 +1,14 @@
 import { api } from '@/services/api/client'
-import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse, PeriodFinal, SectionFinal } from '@/types/grades'
+import type {
+  Grade,
+  GradeColumn,
+  GradeConvention,
+  GradeSheetResponse,
+  PeriodFinal,
+  SectionFinal,
+  WorkGroup,
+  WorkGroupDraft,
+} from '@/types/grades'
 
 export const gradesApi = {
   sheet: (groupSubjectId: number, periodId: number) =>
@@ -86,4 +95,12 @@ export const gradeColumnsApi = {
 
   update: (id: number, payload: { name?: string; short_name?: string | null }) =>
     api.put<{ data: GradeColumn }>(`/grade-columns/${id}`, payload).then((r) => r.data.data),
+}
+
+/** Grupos de trabajo de una actividad. Se guardan todos juntos: lo que no va en la lista se elimina. */
+export const workGroupsApi = {
+  sync: (columnId: number, groups: WorkGroupDraft[]) =>
+    api
+      .put<{ data: WorkGroup[]; grades_updated: number }>(`/grade-columns/${columnId}/work-groups`, { groups })
+      .then((r) => r.data),
 }

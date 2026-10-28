@@ -8,6 +8,8 @@ import { getGradeColor } from '@/utils/gradeHelpers'
 import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
+import { WorkGroupsDialog } from '@/pages/grades/WorkGroupsDialog'
+import { workGroupsOf } from '@/pages/grades/workGroupHelpers'
 import { ConventionChips } from '@/pages/grades/conventions'
 import { gradeCellDisplay, inputFromConvention, parseGradeInput, type GradeInput } from '@/pages/grades/conventionHelpers'
 import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
@@ -37,6 +39,7 @@ export function GradeSheetMobile({
 }) {
   const [view, setView] = useState<View>({ mode: 'list' })
   const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
+  const [groupsColumn, setGroupsColumn] = useState<GradeColumn | null>(null)
   const saveGrade = useSaveGrade(groupSubjectId, periodId)
 
   if (view.mode === 'detail') {
@@ -69,6 +72,17 @@ export function GradeSheetMobile({
             periodId={periodId}
           />
         )}
+        {groupsColumn && (
+          <WorkGroupsDialog
+            key={`${groupSubjectId}-${periodId}-${groupsColumn.id}`}
+            open
+            onOpenChange={(open) => !open && setGroupsColumn(null)}
+            sheet={sheet}
+            column={groupsColumn}
+            groupSubjectId={groupSubjectId}
+            periodId={periodId}
+          />
+        )}
         <Button variant="ghost" className="w-fit" onClick={() => setView({ mode: 'list' })}>
           <ChevronLeft className="h-4 w-4" /> Volver
         </Button>
@@ -93,6 +107,13 @@ export function GradeSheetMobile({
                       title="Poner la misma nota a todos"
                     >
                       Misma nota a todos
+                    </button>
+                    <button
+                      onClick={() => setGroupsColumn(column)}
+                      className="rounded-md border px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
+                      title="Grupos de trabajo"
+                    >
+                      Grupos{workGroupsOf(sheet, column.id).length > 0 ? ` (${workGroupsOf(sheet, column.id).length})` : ''}
                     </button>
                   </div>
                 ))}

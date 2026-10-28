@@ -85,9 +85,30 @@ export interface GradeSheetResponse {
   grades: Record<number, Record<number, Grade>>
   section_finals: Record<number, Record<number, SectionFinal>>
   period_finals: Record<number, PeriodFinal>
+  /** Grupos de trabajo por actividad (columna). Llega como [] si no hay ninguno. */
+  work_groups: Record<number, WorkGroup[]> | []
   min_passing_grade: number
   /** Convenciones del docente del curso, en su orden. */
   conventions: GradeConvention[]
+}
+
+/** Grupo de trabajo de una actividad: su nota se copia a la de cada integrante. */
+export interface WorkGroup {
+  id: number
+  grade_column_id: number
+  name: string
+  score: string | number | null
+  convention_id: number | null
+  sort_order: number
+  student_ids: number[]
+}
+
+export interface WorkGroupDraft {
+  id?: number
+  name: string
+  student_ids: number[]
+  score: number | null
+  convention_id: number | null
 }
 
 /** Abreviatura o ícono (NP, ✓…) con su significado y la nota que vale (null = no cuenta en el promedio). */

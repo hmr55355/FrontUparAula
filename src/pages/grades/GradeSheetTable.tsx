@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { Fragment, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { toast } from 'sonner'
 
 import { getGradeColor, performanceLevelFor } from '@/utils/gradeHelpers'
@@ -6,6 +6,8 @@ import { useSaveGrade } from '@/pages/grades/useSaveGrade'
 import { AdjustFinalDialog } from '@/pages/grades/AdjustFinalDialog'
 import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
 import { ConventionPopover } from '@/pages/grades/conventions'
+import { WorkGroupsDialog } from '@/pages/grades/WorkGroupsDialog'
+import { workGroupIndex, workGroupsOf } from '@/pages/grades/workGroupHelpers'
 import {
   conventionTitle,
   gradeCellDisplay,
@@ -14,7 +16,10 @@ import {
   type GradeInput,
 } from '@/pages/grades/conventionHelpers'
 import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
-import { ListChecks, Plus } from 'lucide-react'
+import { ListChecks, Plus, Users } from 'lucide-react'
+
+/** Hacia dónde pasa el cursor al terminar de escribir una nota. */
+type CellMove = 'up' | 'down' | 'left' | 'right'
 
 type AdjustTarget = {
   type: 'section' | 'period'
@@ -42,6 +47,39 @@ export function GradeSheetTable({
   const saveGrade = useSaveGrade(groupSubjectId, periodId)
   const [adjustTarget, setAdjustTarget] = useState<AdjustTarget | null>(null)
   const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
+  const [groupsColumn, setGroupsColumn] = useState<GradeColumn | null>(null)
+  const groupsByColumn = useMemo(() => workGroupIndex(sheet), [sheet])
+  const tableRef = useRef<HTMLDivElement>(null)
+
+  // Posición de cada actividad de izquierda a derecha, para moverse con Tab.
+  const columnPosition = useMemo(() => {
+    const positions = new Map<number, number>()
+    sheet.sections.flatMap((s) => s.columns).forEach((c, i) => positions.set(c.id, i))
+    return positions
+  }, [sheet.sections])
+
+  // Enter y flechas ↑/↓ pasan a la celda de arriba o abajo; Tab, a la siguiente actividad
+  // editable de la fila. Se abre la celda destino haciéndole clic, igual que el docente.
+  const moveFrom = (row: number, col: number, move: CellMove) => {
+    const container = tableRef.current
+    if (!container) return
+    let target: HTMLElement | null = null
+    if (move === 'up' || move === 'down') {
+      target = container.querySelector(`[data-grade-row="${row + (move === 'down' ? 1 : -1)}"][data-grade-col="${col}"]`)
+    } else {
+      const cells = Array.from(container.querySelectorAll<HTMLElement>(`[data-grade-row="${row}"]`))
+        .map((el) => ({ el, col: Number(el.dataset.gradeCol) }))
+        .filter((c) => (move === 'right' ? c.col > col : c.col < col))
+        .sort((a, b) => (move === 'right' ? a.col - b.col : b.col - a.col))
+      target = cells[0]?.el ?? null
+    }
+    if (!target) return
+    // Después del render que cierra la celda actual (su ancho fijo ya se liberó).
+    requestAnimationFrame(() => {
+      target?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      target?.click()
+    })
+  }
 
   // Encabezado fijo en dos filas: la segunda (actividades) se pega justo debajo
   // de la primera (secciones), así que necesita el alto real de esa fila, que
@@ -64,7 +102,7 @@ export function GradeSheetTable({
     {/* Scroll propio (alto máximo) para que los encabezados queden fijos al bajar:
         un sticky top dentro de un contenedor con overflow se pega a ese contenedor.
         border-separate: con border-collapse las celdas fijas pierden los bordes. */}
-    <div className="hidden max-h-[75vh] overflow-auto rounded-lg border lg:block">
+    <div ref={tableRef} className="hidden max-h-[75vh] overflow-auto rounded-lg border lg:block">
       <table className="w-full border-separate border-spacing-0 text-sm">
         <thead>
           <tr ref={firstHeaderRowRef}>
@@ -112,15 +150,32 @@ export function GradeSheetTable({
                     title={[column.name, column.date?.slice(0, 10), column.description].filter(Boolean).join(' · ')}
                   >
                     {column.column_type === 'manual' && !locked ? (
-                      <button
-                        type="button"
-                        className="inline-flex items-center gap-1 rounded px-1 hover:bg-muted"
-                        title="Poner la misma nota a todos en esta actividad"
-                        onClick={() => setBulkColumn(column)}
-                      >
-                        {column.short_name || column.name}
-                        <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
-                      </button>
+                      <span className="inline-flex items-center gap-0.5">
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded px-1 hover:bg-muted"
+                          title="Poner la misma nota a todos en esta actividad"
+                          onClick={() => setBulkColumn(column)}
+                        >
+                          {column.short_name || column.name}
+                          <ListChecks className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                        <button
+                          type="button"
+                          className={`inline-flex items-center rounded px-0.5 hover:bg-muted ${
+                            workGroupsOf(sheet, column.id).length > 0 ? 'text-primary' : 'text-muted-foreground'
+                          }`}
+                          title={
+                            workGroupsOf(sheet, column.id).length > 0
+                              ? `Grupos de trabajo (${workGroupsOf(sheet, column.id).length})`
+                              : 'Crear grupos de trabajo para esta actividad'
+                          }
+                          aria-label="Grupos de trabajo"
+                          onClick={() => setGroupsColumn(column)}
+                        >
+                          <Users className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
                     ) : (
                       column.short_name || column.name
                     )}
@@ -139,7 +194,7 @@ export function GradeSheetTable({
           </tr>
         </thead>
         <tbody>
-          {sheet.students.map((student) => {
+          {sheet.students.map((student, rowIndex) => {
             const periodFinalRow = sheet.period_finals[student.id]
             const studentName = `${student.first_name} ${student.last_name}`
             return (
@@ -155,9 +210,14 @@ export function GradeSheetTable({
                       {section.columns.map((column) => {
                         const grade = sheet.grades[student.id]?.[column.id];
                         const isComputed = column.column_type !== 'manual'
+                        const workGroup = groupsByColumn.get(column.id)?.get(student.id)
+                        const colIndex = columnPosition.get(column.id) ?? 0
                         return (
                           <td key={column.id} className="border-b border-l p-0 text-center">
                             <EditableGradeCell
+                              cellPosition={{ row: rowIndex, col: colIndex }}
+                              onMove={(move) => moveFrom(rowIndex, colIndex, move)}
+                              workGroup={workGroup && { number: workGroup.number, name: workGroup.group.name }}
                               grade={grade}
                               conventions={sheet.conventions}
                               minPassing={sheet.min_passing_grade}
@@ -230,6 +290,18 @@ export function GradeSheetTable({
       />
     )}
 
+    {groupsColumn && (
+      <WorkGroupsDialog
+        key={`${groupSubjectId}-${periodId}-${groupsColumn.id}`}
+        open
+        onOpenChange={(open) => !open && setGroupsColumn(null)}
+        sheet={sheet}
+        column={groupsColumn}
+        groupSubjectId={groupSubjectId}
+        periodId={periodId}
+      />
+    )}
+
     {adjustTarget && (
       <AdjustFinalDialog
         open
@@ -296,12 +368,19 @@ function ReadOnlyCell({
 }
 
 function EditableGradeCell({
+  cellPosition,
+  onMove,
+  workGroup,
   grade,
   conventions,
   minPassing,
   readOnly,
   onSave,
 }: {
+  cellPosition: { row: number; col: number }
+  onMove: (move: CellMove) => void
+  /** Grupo de trabajo del estudiante en esta actividad (se marca "G1", "G2"… en la celda). */
+  workGroup?: { number: number; name: string }
   grade: Grade | undefined
   conventions: GradeConvention[]
   minPassing: number
@@ -311,6 +390,8 @@ function EditableGradeCell({
   const [editing, setEditing] = useState(false);
   const lockedWidthRef = useRef<number | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Enter guarda y desmonta el input; si además llegara el blur, guardaría dos veces.
+  const committedRef = useRef(false)
   const { content, numeric, convention, colors } = gradeCellDisplay(grade, conventions, minPassing)
   const { background, text } = colors
   const [draft, setDraft] = useState(content === '—' ? '' : content)
@@ -341,21 +422,33 @@ function EditableGradeCell({
     return (
       <button
         type="button"
-        className="block w-full px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
+        data-grade-row={cellPosition.row}
+        data-grade-col={cellPosition.col}
+        className="relative block w-full scroll-ml-[280px] scroll-mt-24 px-2 py-2 hover:ring-2 hover:ring-inset hover:ring-primary"
         style={{ backgroundColor: background, color: text }}
-        title={convention ? conventionTitle(convention) : performanceLevelFor(numeric)?.name}
+        title={[convention ? conventionTitle(convention) : performanceLevelFor(numeric)?.name, workGroup?.name]
+          .filter(Boolean)
+          .join(' · ')}
         onClick={(e) => {
           lockedWidthRef.current = e.currentTarget.offsetWidth
+          committedRef.current = false
           setDraft(content === '—' ? '' : content)
           setEditing(true)
         }}
       >
         {content}
+        {workGroup && (
+          <span className="pointer-events-none absolute right-0.5 top-0.5 text-[9px] font-semibold leading-none opacity-70">
+            G{workGroup.number}
+          </span>
+        )}
       </button>
     )
   }
 
   const save = (input: GradeInput) => {
+    if (committedRef.current) return
+    committedRef.current = true
     setEditing(false)
     const unchanged = input.conventionId === (convention?.id ?? null) && (input.conventionId !== null || input.score === numeric)
     if (!unchanged) {
@@ -366,6 +459,8 @@ function EditableGradeCell({
   const commit = () => {
     const parsed = parseGradeInput(draft, conventions)
     if (parsed.kind === 'invalid') {
+      if (committedRef.current) return
+      committedRef.current = true
       setEditing(false)
       toast.error(`"${draft.trim()}" no es una nota ni una de tus convenciones.`)
       return
@@ -378,10 +473,18 @@ function EditableGradeCell({
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
+    const move: CellMove | null =
+      e.key === 'Enter' ? (e.shiftKey ? 'up' : 'down')
+      : e.key === 'ArrowDown' ? 'down'
+      : e.key === 'ArrowUp' ? 'up'
+      : e.key === 'Tab' ? (e.shiftKey ? 'left' : 'right')
+      : null
+    if (move) {
       e.preventDefault()
       commit()
+      onMove(move)
     } else if (e.key === 'Escape') {
+      committedRef.current = true
       setEditing(false)
     }
   }
@@ -395,6 +498,8 @@ function EditableGradeCell({
         type="text"
         className="block w-full bg-background px-2 py-2 text-center text-foreground outline-none ring-2 ring-inset ring-primary"
         value={draft}
+        // Contenido seleccionado al abrir: lo que se escribe reemplaza la nota (como en una hoja de cálculo).
+        onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={handleKeyDown}
