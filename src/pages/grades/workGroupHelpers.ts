@@ -1,4 +1,4 @@
-import type { GradeSheetResponse, WorkGroup } from '@/types/grades'
+import type { GradeSheetResponse, WorkGroup, WorkGroupSet } from '@/types/grades'
 
 /** Grupos de trabajo de una actividad (el backend manda [] en vez de {} cuando no hay ninguno). */
 export function workGroupsOf(sheet: GradeSheetResponse, columnId: number): WorkGroup[] {
@@ -18,4 +18,14 @@ export function workGroupIndex(sheet: GradeSheetResponse) {
     }
   }
   return index
+}
+
+/** Conjuntos de grupos del curso en el período. */
+export function workGroupSetsOf(sheet: GradeSheetResponse): WorkGroupSet[] {
+  return sheet.work_group_sets ?? []
+}
+
+/** Nombre de cada actividad, para decir qué actividades comparten un conjunto. */
+export function columnNames(sheet: GradeSheetResponse): Map<number, string> {
+  return new Map(sheet.sections.flatMap((s) => s.columns).map((c) => [c.id, c.name]))
 }

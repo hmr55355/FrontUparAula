@@ -19,6 +19,8 @@ export interface GradeColumn {
   formula: string | null
   is_visible: boolean
   sort_order: number
+  /** Conjunto de grupos de trabajo que usa la actividad (compartido con otras actividades). */
+  work_group_set_id?: number | null
 }
 
 export interface GradeSection {
@@ -85,16 +87,27 @@ export interface GradeSheetResponse {
   grades: Record<number, Record<number, Grade>>
   section_finals: Record<number, Record<number, SectionFinal>>
   period_finals: Record<number, PeriodFinal>
-  /** Grupos de trabajo por actividad (columna). Llega como [] si no hay ninguno. */
+  /** Grupos de trabajo por actividad (columna), con la nota del grupo en ella. Puede llegar como []. */
   work_groups: Record<number, WorkGroup[]> | []
+  /** Conjuntos de grupos del curso en el período, con las actividades que los usan. */
+  work_group_sets?: WorkGroupSet[]
   min_passing_grade: number
   /** Convenciones del docente del curso, en su orden. */
   conventions: GradeConvention[]
 }
 
-/** Grupo de trabajo de una actividad: su nota se copia a la de cada integrante. */
+/** Conjunto de grupos de trabajo que varias actividades comparten (p. ej. las fases de un proyecto). */
+export interface WorkGroupSet {
+  id: number
+  name: string
+  groups_count: number
+  column_ids: number[]
+}
+
+/** Grupo de trabajo visto desde una actividad: su nota ahí se copia a la de cada integrante. */
 export interface WorkGroup {
   id: number
+  set_id: number
   grade_column_id: number
   name: string
   score: string | number | null

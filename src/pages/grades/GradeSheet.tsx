@@ -234,6 +234,7 @@ export function GradeSheet() {
           groupSubjectId={gsId}
           periodId={pId}
           groupName={course?.group?.name}
+          workGroupSets={sheet.work_group_sets}
         />
       )}
 

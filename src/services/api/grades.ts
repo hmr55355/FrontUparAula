@@ -86,6 +86,8 @@ export interface NewGradeColumnPayload {
   date?: string
   weight_mode: 'automatic' | 'manual'
   weight?: number
+  /** Usar los grupos de trabajo de otra actividad (mismo curso y período). */
+  work_group_set_id?: number | null
 }
 
 /** Columnas sueltas de la planilla (agregar o renombrar sin pasar por Configurar planilla). */
@@ -107,8 +109,13 @@ export const gradeColumnsApi = {
 
 /** Grupos de trabajo de una actividad. Se guardan todos juntos: lo que no va en la lista se elimina. */
 export const workGroupsApi = {
-  sync: (columnId: number, groups: WorkGroupDraft[]) =>
+  /** `setId`: null = conjunto nuevo. Sin grupos, la actividad deja de usar grupos. */
+  sync: (columnId: number, payload: { setId: number | null; setName?: string; groups: WorkGroupDraft[] }) =>
     api
-      .put<{ data: WorkGroup[]; grades_updated: number }>(`/grade-columns/${columnId}/work-groups`, { groups })
+      .put<{ data: WorkGroup[]; grades_updated: number }>(`/grade-columns/${columnId}/work-groups`, {
+        set_id: payload.setId,
+        set_name: payload.setName,
+        groups: payload.groups,
+      })
       .then((r) => r.data),
 }

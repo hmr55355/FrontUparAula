@@ -11,7 +11,7 @@ import { gradeColumnsApi } from '@/services/api/grades'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
 import { SameGradeQuestion } from '@/components/SameGradeQuestion'
-import type { GradeSection } from '@/types/grades'
+import type { GradeSection, WorkGroupSet } from '@/types/grades'
 
 /** Abreviatura sugerida para el encabezado: iniciales o el inicio del nombre (máx. 8). */
 function suggestShortName(name: string) {
@@ -35,6 +35,7 @@ export function AddActivityDialog({
   groupSubjectId,
   periodId,
   groupName,
+  workGroupSets = [],
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -44,6 +45,8 @@ export function AddActivityDialog({
   periodId: number
   /** Nombre del grupo actual, para la pregunta de los otros cursos del grado. */
   groupName?: string
+  /** Conjuntos de grupos de trabajo del curso, para que la actividad nazca con ellos. */
+  workGroupSets?: WorkGroupSet[]
 }) {
   const queryClient = useQueryClient()
   const { data: institution } = useCurrentInstitution()
@@ -70,6 +73,13 @@ export function AddActivityDialog({
   })
 
   const section = sections.find((s) => s.id === sectionId)
+
+  // Por defecto, los grupos de la última actividad de la sección que los use (la fase anterior).
+  const suggestedSetId = (s: GradeSection | undefined) =>
+    [...(s?.columns ?? [])].reverse().find((c) => c.work_group_set_id)?.work_group_set_id ?? null
+  const [workGroupSetId, setWorkGroupSetId] = useState<number | null>(() =>
+    suggestedSetId(sections.find((s) => s.id === (presetSectionId ?? sections[0]?.id)))
+  )
   const count = (section?.columns.length ?? 0) + 1
   const share = (Math.floor(1000 / count) / 10).toFixed(1)
 
@@ -101,7 +111,8 @@ export function AddActivityDialog({
     }
     setSaving(true)
     try {
-      await gradeColumnsApi.create({ ...payload, grade_section_id: sectionId })
+      // Los grupos son de este curso: en los otros cursos del grado la actividad nace sin grupos.
+      await gradeColumnsApi.create({ ...payload, grade_section_id: sectionId, work_group_set_id: workGroupSetId })
       // Los otros cursos uno por uno: si alguno falla, los demás quedan y se avisa cuál.
       const failed: string[] = []
       for (const target of targets.slice(1)) {
@@ -148,7 +159,10 @@ export function AddActivityDialog({
             <select
               className="h-12 w-full rounded-md border border-input bg-transparent px-3"
               value={sectionId}
-              onChange={(e) => setSectionId(Number(e.target.value))}
+              onChange={(e) => {
+                setSectionId(Number(e.target.value))
+                setWorkGroupSetId(suggestedSetId(sections.find((s) => s.id === Number(e.target.value))))
+              }}
             >
               {sections.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -193,6 +207,29 @@ export function AddActivityDialog({
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
+          {workGroupSets.length > 0 && (
+            <div className="space-y-1">
+              <Label>Grupos de trabajo</Label>
+              <select
+                aria-label="Grupos de trabajo"
+                className="h-12 w-full rounded-md border border-input bg-transparent px-3"
+                value={workGroupSetId ?? ''}
+                onChange={(e) => setWorkGroupSetId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">Sin grupos (individual)</option>
+                {workGroupSets.map((set) => (
+                  <option key={set.id} value={set.id}>
+                    {set.name} ({set.groups_count} {set.groups_count === 1 ? 'grupo' : 'grupos'})
+                  </option>
+                ))}
+              </select>
+              {workGroupSetId && (
+                <p className="text-xs text-muted-foreground">
+                  La actividad usará los mismos grupos; la nota de cada grupo se pone aparte, en el icono de grupos de la columna.
+                </p>
+              )}
+            </div>
+          )}
           <div className="space-y-1">
             <Label>Peso en la sección</Label>
             <div className="flex gap-1">

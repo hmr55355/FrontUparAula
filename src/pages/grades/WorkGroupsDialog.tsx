@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { workGroupsApi } from '@/services/api/grades'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import { conventionTitle, parseGradeInput } from '@/pages/grades/conventionHelpers'
-import { workGroupsOf } from '@/pages/grades/workGroupHelpers'
+import { columnNames, workGroupSetsOf, workGroupsOf } from '@/pages/grades/workGroupHelpers'
 import type { GradeColumn, GradeSheetResponse, GradeSheetStudent, WorkGroup, WorkGroupDraft } from '@/types/grades'
 
 interface DraftGroup {
@@ -28,6 +28,23 @@ const nextKey = () => `new-${++draftKey}`
 function gradeText(group: WorkGroup, sheet: GradeSheetResponse) {
   if (group.convention_id) return sheet.conventions.find((c) => c.id === group.convention_id)?.code ?? ''
   return group.score === null ? '' : Number(group.score).toFixed(1)
+}
+
+/**
+ * Los grupos de un conjunto vistos desde esta actividad: integrantes y nombres del
+ * conjunto, y la nota de cada grupo en esta actividad (vacía si aún no la usa).
+ */
+function draftsFor(sheet: GradeSheetResponse, setId: number, columnId: number): DraftGroup[] {
+  const own = workGroupsOf(sheet, columnId).filter((g) => g.set_id === setId)
+  const set = workGroupSetsOf(sheet).find((s) => s.id === setId)
+  const source = own.length > 0 ? own : workGroupsOf(sheet, set?.column_ids[0] ?? -1)
+  return source.map((g) => ({
+    key: `id-${g.id}`,
+    id: g.id,
+    name: g.name,
+    studentIds: g.student_ids,
+    grade: own.length > 0 ? gradeText(g, sheet) : '',
+  }))
 }
 
 /**
@@ -51,15 +68,17 @@ export function WorkGroupsDialog({
   periodId: number
 }) {
   const queryClient = useQueryClient()
-  const [groups, setGroups] = useState<DraftGroup[]>(() =>
-    workGroupsOf(sheet, column.id).map((g) => ({
-      key: `id-${g.id}`,
-      id: g.id,
-      name: g.name,
-      studentIds: g.student_ids,
-      grade: gradeText(g, sheet),
-    }))
+  const sets = workGroupSetsOf(sheet)
+  const names = useMemo(() => columnNames(sheet), [sheet])
+  // Conjunto que usa la actividad; null = uno nuevo.
+  const currentSetId = column.work_group_set_id ?? workGroupsOf(sheet, column.id)[0]?.set_id ?? null
+  const [setId, setSetId] = useState<number | null>(currentSetId)
+  const [setName, setSetName] = useState(
+    () => sets.find((s) => s.id === currentSetId)?.name ?? `Grupos de ${column.name}`
   )
+  const [groups, setGroups] = useState<DraftGroup[]>(() => (currentSetId ? draftsFor(sheet, currentSetId, column.id) : []))
+  // Otras actividades que comparten el conjunto elegido: cambiar integrantes o nombres las afecta.
+  const sharedWith = (sets.find((s) => s.id === setId)?.column_ids ?? []).filter((id) => id !== column.id)
   const [activeKey, setActiveKey] = useState<string | null>(groups[0]?.key ?? null)
   const [groupSize, setGroupSize] = useState('4')
   const [saving, setSaving] = useState(false)
@@ -68,11 +87,6 @@ export function WorkGroupsDialog({
   const studentsById = useMemo(() => new Map(sheet.students.map((s) => [s.id, s])), [sheet.students])
   const grouped = new Set(groups.flatMap((g) => g.studentIds))
   const ungrouped = sheet.students.filter((s) => !grouped.has(s.id))
-
-  // Otras actividades del curso que ya tienen grupos, para reutilizarlos.
-  const copySources = sheet.sections
-    .flatMap((section) => section.columns)
-    .filter((c) => c.id !== column.id && workGroupsOf(sheet, c.id).length > 0)
 
   const update = (key: string, change: Partial<DraftGroup>) =>
     setGroups((current) => current.map((g) => (g.key === key ? { ...g, ...change } : g)))
@@ -129,20 +143,37 @@ export function WorkGroupsDialog({
     })
   }
 
-  /** Mismos grupos (nombres e integrantes) que otra actividad, sin sus notas. */
-  const copyFrom = (sourceColumnId: number) => {
-    const source = workGroupsOf(sheet, sourceColumnId)
-    // Los grupos que ya existían en esta actividad conservan su id (por orden) para no perder su nota.
-    setGroups((current) =>
-      source.map((g, index) => ({
-        key: current[index]?.key ?? nextKey(),
-        id: current[index]?.id,
-        name: g.name,
-        studentIds: g.student_ids.filter((id) => studentsById.has(id)),
-        grade: current[index]?.grade ?? '',
-      }))
-    )
-    toast.success('Grupos copiados. Revisa y guarda.')
+  /** Cambiar de conjunto: sus grupos con la nota de esta actividad (o uno nuevo, vacío). */
+  const chooseSet = (value: string) => {
+    if (value === 'new') {
+      setSetId(null)
+      setSetName(`Grupos de ${column.name}`)
+      setGroups([])
+      setActiveKey(null)
+      return
+    }
+    const id = Number(value)
+    const drafts = draftsFor(sheet, id, column.id)
+    setSetId(id)
+    setSetName(sets.find((s) => s.id === id)?.name ?? '')
+    setGroups(drafts)
+    setActiveKey(drafts[0]?.key ?? null)
+  }
+
+  /** La actividad deja de usar grupos (el conjunto sigue para las demás actividades). */
+  const unlink = async () => {
+    if (!window.confirm(`¿Quitar los grupos de "${column.name}"? Las notas que ya tienen los estudiantes no se borran.`)) return
+    setSaving(true)
+    try {
+      await workGroupsApi.sync(column.id, { setId: currentSetId, groups: [] })
+      toast.success('La actividad ya no usa grupos.')
+      queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+      onOpenChange(false)
+    } catch {
+      toast.error('No pudimos quitar los grupos.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const save = async () => {
@@ -169,7 +200,11 @@ export function WorkGroupsDialog({
 
     setSaving(true)
     try {
-      const { grades_updated } = await workGroupsApi.sync(column.id, payload)
+      if (payload.length === 0) {
+        toast.error('Agrega al menos un grupo, o usa "Quitar grupos".')
+        return
+      }
+      const { grades_updated } = await workGroupsApi.sync(column.id, { setId, setName: setName.trim() || undefined, groups: payload })
       toast.success(
         grades_updated > 0
           ? `Grupos guardados. Se actualizó la nota de ${grades_updated} estudiantes.`
@@ -191,6 +226,44 @@ export function WorkGroupsDialog({
           <DialogTitle>Grupos de trabajo — {column.name}</DialogTitle>
         </DialogHeader>
 
+        <div className="flex flex-col gap-2 rounded-md border bg-muted/30 p-2">
+          <div className="flex flex-wrap items-end gap-2">
+            {sets.length > 0 && (
+              <div className="space-y-1">
+                <Label className="text-xs">Grupos que usa esta actividad</Label>
+                <select
+                  aria-label="Conjunto de grupos"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={setId ?? 'new'}
+                  onChange={(e) => chooseSet(e.target.value)}
+                >
+                  {sets.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.groups_count} {s.groups_count === 1 ? 'grupo' : 'grupos'})
+                    </option>
+                  ))}
+                  <option value="new">+ Grupos nuevos</option>
+                </select>
+              </div>
+            )}
+            <div className="min-w-[12rem] flex-1 space-y-1">
+              <Label className="text-xs">Nombre de estos grupos</Label>
+              <Input
+                className="h-9"
+                aria-label="Nombre del conjunto"
+                placeholder="Proyecto feria"
+                value={setName}
+                onChange={(e) => setSetName(e.target.value)}
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {sharedWith.length > 0
+              ? `También los usan: ${sharedWith.map((id) => names.get(id)).join(', ')}. Cambiar nombres o integrantes se aplica en todas; la nota de cada grupo es solo de "${column.name}".`
+              : 'Al crear la siguiente actividad (otra fase, por ejemplo) puedes elegir estos mismos grupos y ponerles otra nota.'}
+          </p>
+        </div>
+
         <div className="flex flex-wrap items-end gap-2">
           <Button size="sm" variant="outline" onClick={addGroup}>
             <Plus /> Agregar grupo
@@ -209,20 +282,6 @@ export function WorkGroupsDialog({
               <Shuffle /> Repartir al azar
             </Button>
           </div>
-          {copySources.length > 0 && (
-            <select
-              className="h-9 rounded-md border bg-background px-2 text-sm"
-              value=""
-              onChange={(e) => e.target.value && copyFrom(Number(e.target.value))}
-            >
-              <option value="">Copiar grupos de…</option>
-              {copySources.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
         </div>
 
         <div className="grid gap-3 md:grid-cols-[1fr_220px]">
@@ -319,13 +378,22 @@ export function WorkGroupsDialog({
           se reescribe a todos; si no, se respeta la que le hayas cambiado a mano a alguno en la planilla.
         </p>
 
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {currentSetId ? (
+            <Button variant="ghost" className="text-destructive" onClick={unlink} disabled={saving}>
+              Quitar grupos de esta actividad
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={save} disabled={saving}>
             {saving ? 'Guardando...' : 'Guardar grupos'}
           </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
