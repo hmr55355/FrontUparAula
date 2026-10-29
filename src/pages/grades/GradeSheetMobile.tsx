@@ -11,6 +11,7 @@ import { BulkColumnGradeDialog } from '@/pages/grades/BulkColumnGradeDialog'
 import { WorkGroupsDialog } from '@/pages/grades/WorkGroupsDialog'
 import { workGroupsOf } from '@/pages/grades/workGroupHelpers'
 import { ConventionChips } from '@/pages/grades/conventions'
+import { ColumnGradeList } from '@/pages/grades/ColumnGradeList'
 import { gradeCellDisplay, inputFromConvention, parseGradeInput, type GradeInput } from '@/pages/grades/conventionHelpers'
 import type { Grade, GradeColumn, GradeConvention, GradeSheetResponse } from '@/types/grades'
 
@@ -23,7 +24,12 @@ type AdjustTarget = {
   adjustmentReason: string | null
 }
 
-type View = { mode: 'list' } | { mode: 'detail'; studentId: number } | { mode: 'pick-column' } | { mode: 'quick'; columnId: number }
+type View =
+  | { mode: 'list' }
+  | { mode: 'detail'; studentId: number }
+  | { mode: 'pick-column' }
+  | { mode: 'quick'; columnId: number }
+  | { mode: 'column-list'; columnId: number }
 
 export function GradeSheetMobile({
   sheet,
@@ -55,6 +61,22 @@ export function GradeSheetMobile({
         onBack={() => setView({ mode: 'list' })}
         onSave={(columnId, input) => saveGrade.mutate({ studentId: student.id, columnId, ...input })}
         locked={locked}
+      />
+    )
+  }
+
+  const manualColumns = sheet.sections.flatMap((section) => section.columns.filter((c) => c.column_type === 'manual'))
+
+  if (view.mode === 'column-list') {
+    return (
+      <ColumnGradeList
+        sheet={sheet}
+        columnId={view.columnId}
+        columns={manualColumns}
+        locked={locked}
+        onChangeColumn={(columnId) => setView({ mode: 'column-list', columnId })}
+        onBack={() => setView({ mode: locked ? 'list' : 'pick-column' })}
+        onSave={(studentId, input) => saveGrade.mutate({ studentId, columnId: view.columnId, ...input })}
       />
     )
   }
@@ -94,27 +116,36 @@ export function GradeSheetMobile({
               {section.columns
                 .filter((c) => c.column_type === 'manual')
                 .map((column) => (
-                  <div key={column.id} className="flex gap-1">
-                    <button
-                      onClick={() => setView({ mode: 'quick', columnId: column.id })}
-                      className="flex-1 rounded-md border px-3 py-2 text-left text-sm hover:bg-muted"
-                    >
-                      {column.name}
-                    </button>
-                    <button
-                      onClick={() => setBulkColumn(column)}
-                      className="rounded-md border px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
-                      title="Poner la misma nota a todos"
-                    >
-                      Misma nota a todos
-                    </button>
-                    <button
-                      onClick={() => setGroupsColumn(column)}
-                      className="rounded-md border px-3 py-2 text-xs text-muted-foreground hover:bg-muted"
-                      title="Grupos de trabajo"
-                    >
-                      Grupos{workGroupsOf(sheet, column.id).length > 0 ? ` (${workGroupsOf(sheet, column.id).length})` : ''}
-                    </button>
+                  <div key={column.id} className="rounded-md border px-3 py-2">
+                    <p className="text-sm font-medium">{column.name}</p>
+                    <div className="mt-1.5 grid grid-cols-2 gap-1 min-[420px]:grid-cols-4">
+                      <button
+                        onClick={() => setView({ mode: 'quick', columnId: column.id })}
+                        className="rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground"
+                      >
+                        Uno por uno
+                      </button>
+                      <button
+                        onClick={() => setView({ mode: 'column-list', columnId: column.id })}
+                        className="rounded-md border px-2 py-1.5 text-xs hover:bg-muted"
+                      >
+                        En lista
+                      </button>
+                      <button
+                        onClick={() => setBulkColumn(column)}
+                        className="rounded-md border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+                        title="Poner la misma nota a todos"
+                      >
+                        Misma nota
+                      </button>
+                      <button
+                        onClick={() => setGroupsColumn(column)}
+                        className="rounded-md border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
+                        title="Grupos de trabajo"
+                      >
+                        Grupos{workGroupsOf(sheet, column.id).length > 0 ? ` (${workGroupsOf(sheet, column.id).length})` : ''}
+                      </button>
+                    </div>
                   </div>
                 ))}
             </div>
@@ -138,6 +169,11 @@ export function GradeSheetMobile({
   return (
     <div className="flex flex-col gap-3 lg:hidden">
       {!locked && <Button onClick={() => setView({ mode: 'pick-column' })}>✏️ Calificar actividad</Button>}
+      {locked && manualColumns.length > 0 && (
+        <Button variant="outline" onClick={() => setView({ mode: 'column-list', columnId: manualColumns[0].id })}>
+          📋 Ver una actividad en lista
+        </Button>
+      )}
       <div className="flex flex-col gap-2">
         {sheet.students.map((student) => {
           const periodFinal = sheet.period_finals[student.id]?.period_final

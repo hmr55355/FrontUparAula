@@ -143,6 +143,7 @@ export function Copies() {
           onOpenChange={setDialogOpen}
           groupId={groupId}
           periodId={periodId || undefined}
+          groupName={groups?.find((g) => g.id === groupId)?.name}
         />
       )}
     </div>

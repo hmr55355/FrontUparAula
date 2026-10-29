@@ -95,6 +95,14 @@ export const gradeColumnsApi = {
 
   update: (id: number, payload: { name?: string; short_name?: string | null }) =>
     api.put<{ data: GradeColumn }>(`/grade-columns/${id}`, payload).then((r) => r.data.data),
+
+  /** Mis cursos de la misma materia en los otros grupos del grado, con su sección del mismo nombre. */
+  siblings: (sectionId: number) =>
+    api
+      .get<{ data: { group_subject_id: number; group_name: string; section_id: number | null }[] }>('/grade-columns/siblings', {
+        params: { sectionId },
+      })
+      .then((r) => r.data.data),
 }
 
 /** Grupos de trabajo de una actividad. Se guardan todos juntos: lo que no va en la lista se elimina. */

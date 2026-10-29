@@ -19,12 +19,14 @@ export function CopyPaymentsDialog({
   onOpenChange,
   groupId,
   periodId,
+  groupName,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   groupId: number
   /** Período de la planilla abierta: los cobros creados desde aquí quedan en él. */
   periodId?: number
+  groupName?: string
 }) {
   const [chargeId, setChargeId] = useState<number | null>(null)
 
@@ -37,7 +39,7 @@ export function CopyPaymentsDialog({
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-2xl">
         {chargeId === null ? (
-          <ChargeList groupId={groupId} periodId={periodId} onSelect={setChargeId} />
+          <ChargeList groupId={groupId} periodId={periodId} groupName={groupName} onSelect={setChargeId} />
         ) : (
           <ChargeDetail chargeId={chargeId} onBack={() => setChargeId(null)} />
         )}
@@ -49,10 +51,12 @@ export function CopyPaymentsDialog({
 function ChargeList({
   groupId,
   periodId,
+  groupName,
   onSelect,
 }: {
   groupId: number
   periodId?: number
+  groupName?: string
   onSelect: (id: number) => void
 }) {
   const [creating, setCreating] = useState(false)
@@ -73,7 +77,7 @@ function ChargeList({
         <Plus className="h-4 w-4" /> Nuevo cobro
       </Button>
       {creating && (
-        <NewChargeDialog open onOpenChange={setCreating} groupId={groupId} periodId={periodId} />
+        <NewChargeDialog open onOpenChange={setCreating} groupId={groupId} periodId={periodId} groupName={groupName} />
       )}
 
       {isLoading && <p className="text-sm text-muted-foreground">Cargando cobros...</p>}

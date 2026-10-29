@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
 
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { gradeColumnsApi } from '@/services/api/grades'
 import { gradeSheetQueryKey } from '@/pages/grades/useSaveGrade'
 import { useCurrentInstitution } from '@/hooks/useCurrentInstitution'
+import { SameGradeQuestion } from '@/components/SameGradeQuestion'
 import type { GradeSection } from '@/types/grades'
 
 /** Abreviatura sugerida para el encabezado: iniciales o el inicio del nombre (máx. 8). */
@@ -33,6 +34,7 @@ export function AddActivityDialog({
   presetSectionId,
   groupSubjectId,
   periodId,
+  groupName,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -40,6 +42,8 @@ export function AddActivityDialog({
   presetSectionId?: number
   groupSubjectId: number
   periodId: number
+  /** Nombre del grupo actual, para la pregunta de los otros cursos del grado. */
+  groupName?: string
 }) {
   const queryClient = useQueryClient()
   const { data: institution } = useCurrentInstitution()
@@ -54,12 +58,23 @@ export function AddActivityDialog({
   const [weightMode, setWeightMode] = useState<'automatic' | 'manual'>('automatic')
   const [weight, setWeight] = useState('')
   const [saving, setSaving] = useState(false)
+  // Paso 2: preguntar si también va en los otros cursos del grado.
+  const [asking, setAsking] = useState(false)
+  const [alsoIn, setAlsoIn] = useState<number[]>([])
+
+  const { data: siblings } = useQuery({
+    queryKey: ['grade-column-siblings', sectionId],
+    queryFn: () => gradeColumnsApi.siblings(sectionId as number),
+    enabled: open && !!sectionId,
+    staleTime: 60 * 1000,
+  })
 
   const section = sections.find((s) => s.id === sectionId)
   const count = (section?.columns.length ?? 0) + 1
   const share = (Math.floor(1000 / count) / 10).toFixed(1)
 
-  const save = async () => {
+  /** `onlyHere`: respuesta "solo en este curso" a la pregunta de los otros cursos. */
+  const save = async (onlyHere = false) => {
     if (!sectionId || !name.trim()) {
       toast.error('Elige la sección y escribe el nombre de la actividad.')
       return
@@ -68,20 +83,38 @@ export function AddActivityDialog({
       toast.error('Escribe el peso de la actividad.')
       return
     }
+    // Primero la pregunta, si tiene otros cursos de la misma materia en el grado.
+    if (!asking && siblings?.length) {
+      setAlsoIn(siblings.filter((s) => s.section_id).map((s) => s.group_subject_id))
+      setAsking(true)
+      return
+    }
+    const targets = [sectionId, ...(siblings ?? []).filter((s) => s.section_id && !onlyHere && alsoIn.includes(s.group_subject_id)).map((s) => s.section_id as number)]
+    const payload = {
+      column_type: 'manual' as const,
+      name: name.trim(),
+      short_name: shortName.trim() || undefined,
+      max_score: Number(maxScore) || scaleMax,
+      date: date || undefined,
+      weight_mode: weightMode,
+      weight: weightMode === 'manual' ? Number(weight) : undefined,
+    }
     setSaving(true)
     try {
-      await gradeColumnsApi.create({
-        grade_section_id: sectionId,
-        column_type: 'manual',
-        name: name.trim(),
-        short_name: shortName.trim() || undefined,
-        max_score: Number(maxScore) || scaleMax,
-        date: date || undefined,
-        weight_mode: weightMode,
-        weight: weightMode === 'manual' ? Number(weight) : undefined,
-      })
-      toast.success(`Actividad "${name.trim()}" agregada.`)
-      queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+      await gradeColumnsApi.create({ ...payload, grade_section_id: sectionId })
+      // Los otros cursos uno por uno: si alguno falla, los demás quedan y se avisa cuál.
+      const failed: string[] = []
+      for (const target of targets.slice(1)) {
+        try {
+          await gradeColumnsApi.create({ ...payload, grade_section_id: target })
+        } catch {
+          failed.push(siblings?.find((s) => s.section_id === target)?.group_name ?? '?')
+        }
+      }
+      const extra = targets.length - 1 - failed.length
+      toast.success(`Actividad "${name.trim()}" agregada${extra > 0 ? ` aquí y en ${extra} ${extra === 1 ? 'curso más' : 'cursos más'}` : ''}.`)
+      if (failed.length) toast.error(`No se pudo agregar en ${failed.join(', ')}.`)
+      queryClient.invalidateQueries({ queryKey: extra > 0 ? ['grades-sheet'] : gradeSheetQueryKey(groupSubjectId, periodId) })
       onOpenChange(false)
     } catch (error) {
       toast.error((axios.isAxiosError(error) && error.response?.data?.message) || 'No pudimos agregar la actividad.')
@@ -96,6 +129,19 @@ export function AddActivityDialog({
         <DialogHeader>
           <DialogTitle>Nueva actividad</DialogTitle>
         </DialogHeader>
+        {asking && siblings ? (
+          <SameGradeQuestion
+            what="esta actividad"
+            currentName={groupName ?? 'este curso'}
+            options={siblings.map((s) => ({
+              id: s.group_subject_id,
+              label: s.group_name,
+              unavailable: s.section_id ? undefined : `no tiene la sección "${section?.name}" en este período`,
+            }))}
+            selected={alsoIn}
+            onChange={setAlsoIn}
+          />
+        ) : (
         <div className="flex flex-col gap-3">
           <div className="space-y-1">
             <Label>Sección</Label>
@@ -183,10 +229,29 @@ export function AddActivityDialog({
             )}
           </div>
         </div>
-        <DialogFooter>
-          <Button onClick={save} disabled={saving}>
-            {saving ? 'Guardando...' : 'Agregar actividad'}
-          </Button>
+        )}
+        <DialogFooter className="gap-2">
+          {asking ? (
+            <>
+              <Button variant="ghost" onClick={() => setAsking(false)} disabled={saving}>
+                Volver
+              </Button>
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => save(true)}
+              >
+                Solo en {groupName ?? 'este curso'}
+              </Button>
+              <Button onClick={() => save()} disabled={saving || alsoIn.length === 0}>
+                {saving ? 'Guardando...' : `Agregar en ${alsoIn.length + 1} cursos`}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={() => save()} disabled={saving}>
+              {saving ? 'Guardando...' : siblings?.length ? 'Continuar' : 'Agregar actividad'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

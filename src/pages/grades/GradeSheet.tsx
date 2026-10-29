@@ -233,10 +233,11 @@ export function GradeSheet() {
           presetSectionId={addActivity.sectionId}
           groupSubjectId={gsId}
           periodId={pId}
+          groupName={course?.group?.name}
         />
       )}
 
-      {course && <CopyPaymentsDialog open={copiesOpen} onOpenChange={setCopiesOpen} groupId={course.group_id} periodId={pId} />}
+      {course && <CopyPaymentsDialog open={copiesOpen} onOpenChange={setCopiesOpen} groupId={course.group_id} periodId={pId} groupName={course.group?.name} />}
     </div>
   )
 }

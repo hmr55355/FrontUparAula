@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import axios from 'axios'
 import { Trash2 } from 'lucide-react'
@@ -13,6 +13,7 @@ import { localDateString } from '@/utils/dateHelpers'
 import { CHARGE_CONCEPTS } from '@/types/copies'
 import type { ChargeConcept, CopyCharge } from '@/types/copies'
 import { cn } from '@/lib/utils'
+import { SameGradeQuestion } from '@/components/SameGradeQuestion'
 
 function today() {
   return localDateString()
@@ -31,6 +32,7 @@ export function NewChargeDialog({
   periodId,
   charge,
   onDeleted,
+  groupName,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -38,6 +40,8 @@ export function NewChargeDialog({
   periodId?: number
   charge?: CopyCharge
   onDeleted?: () => void
+  /** Nombre del grupo, para la pregunta de los otros cursos del grado. */
+  groupName?: string
 }) {
   const queryClient = useQueryClient()
   const isEdit = !!charge
@@ -49,6 +53,15 @@ export function NewChargeDialog({
   const [chargeDate, setChargeDate] = useState(charge?.charge_date.slice(0, 10) ?? today())
   const [notes, setNotes] = useState(charge?.notes ?? '')
   const [saving, setSaving] = useState(false)
+  // Al crear: preguntar si el cobro va también en los otros cursos del grado.
+  const [asking, setAsking] = useState(false)
+  const [alsoIn, setAlsoIn] = useState<number[]>([])
+  const { data: siblings } = useQuery({
+    queryKey: ['copy-charge-siblings', groupId],
+    queryFn: () => copyChargesApi.siblingGroups(groupId),
+    enabled: open && !isEdit,
+    staleTime: 60 * 1000,
+  })
 
   // Fuera de copias no hay "cantidad": el valor es por estudiante.
   const effectiveQuantity = isCopies ? Number(quantity) || 0 : 1
@@ -61,6 +74,7 @@ export function NewChargeDialog({
     setUnitPrice('')
     setChargeDate(today())
     setNotes('')
+    setAsking(false)
   }
 
   const invalidate = () => {
@@ -93,7 +107,8 @@ export function NewChargeDialog({
     }
   }
 
-  const save = async () => {
+  /** `onlyHere`: respuesta "solo en este curso" a la pregunta de los otros cursos. */
+  const save = async (onlyHere = false) => {
     if (!description.trim() || !unitPrice || (isCopies && !quantity)) {
       toast.error(isCopies ? 'Completa la descripción, la cantidad y el precio por copia.' : 'Completa la descripción y el valor.')
       return
@@ -124,19 +139,37 @@ export function NewChargeDialog({
       }
       return
     }
+    if (!asking && siblings?.length) {
+      setSaving(false)
+      setAlsoIn(siblings.map((g) => g.id))
+      setAsking(true)
+      return
+    }
+    const payload = {
+      period_id: periodId,
+      concept,
+      description,
+      quantity: effectiveQuantity,
+      unit_price: Number(unitPrice),
+      charge_date: chargeDate,
+      notes: notes || undefined,
+    }
     try {
-      await copyChargesApi.create({
-        group_id: groupId,
-        period_id: periodId,
-        concept,
-        description,
-        quantity: effectiveQuantity,
-        unit_price: Number(unitPrice),
-        charge_date: chargeDate,
-        notes: notes || undefined,
-      })
-      toast.success('Cobro creado.')
+      await copyChargesApi.create({ ...payload, group_id: groupId })
+      const others = onlyHere ? [] : (siblings ?? []).filter((g) => alsoIn.includes(g.id))
+      const failed: string[] = []
+      for (const other of others) {
+        try {
+          await copyChargesApi.create({ ...payload, group_id: other.id })
+        } catch {
+          failed.push(other.name)
+        }
+      }
+      const extra = others.length - failed.length
+      toast.success(extra > 0 ? `Cobro creado aquí y en ${extra} ${extra === 1 ? 'curso más' : 'cursos más'}.` : 'Cobro creado.')
+      if (failed.length) toast.error(`No se pudo crear en ${failed.join(', ')}.`)
       invalidate()
+      if (extra > 0) queryClient.invalidateQueries({ queryKey: ['copy-charges'] })
       onOpenChange(false)
       reset()
     } catch {
@@ -152,6 +185,16 @@ export function NewChargeDialog({
         <DialogHeader>
           <DialogTitle>{isEdit ? 'Editar cobro' : 'Nuevo cobro'}</DialogTitle>
         </DialogHeader>
+        {asking && siblings ? (
+          <SameGradeQuestion
+            what="este cobro"
+            currentName={groupName ?? 'este curso'}
+            options={siblings.map((g) => ({ id: g.id, label: g.name }))}
+            selected={alsoIn}
+            onChange={setAlsoIn}
+          />
+        ) : (
+          <>
 
         <div className="flex flex-col gap-3">
           <div className="space-y-1">
@@ -225,18 +268,33 @@ export function NewChargeDialog({
             />
           </div>
         </div>
-
+          </>
+        )}
         <DialogFooter className="gap-2 sm:justify-between">
-          {isEdit ? (
+          {isEdit && !asking ? (
             <Button variant="ghost" className="text-destructive" onClick={remove} disabled={saving}>
               <Trash2 className="h-4 w-4" /> Eliminar
             </Button>
           ) : (
             <span />
           )}
-          <Button onClick={save} disabled={saving}>
-            {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : 'Guardar cobro'}
-          </Button>
+          {asking ? (
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="ghost" onClick={() => setAsking(false)} disabled={saving}>
+                Volver
+              </Button>
+              <Button variant="outline" onClick={() => save(true)} disabled={saving}>
+                Solo en {groupName ?? 'este curso'}
+              </Button>
+              <Button onClick={() => save()} disabled={saving || alsoIn.length === 0}>
+                {saving ? 'Guardando...' : `Crear en ${alsoIn.length + 1} cursos`}
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => save()} disabled={saving}>
+              {saving ? 'Guardando...' : isEdit ? 'Guardar cambios' : siblings?.length ? 'Continuar' : 'Guardar cobro'}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

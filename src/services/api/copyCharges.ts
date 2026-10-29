@@ -28,6 +28,10 @@ export const copyChargesApi = {
   create: (payload: CopyChargePayload) =>
     api.post<{ data: CopyCharge }>('/copy-charges', payload).then((r) => r.data.data),
 
+  /** Grupos del mismo grado donde dicto o que dirijo (para crear el cobro también allí). */
+  siblingGroups: (groupId: number) =>
+    api.get<{ data: { id: number; name: string }[] }>('/copy-charges/sibling-groups', { params: { groupId } }).then((r) => r.data.data),
+
   update: (id: number, payload: Partial<CopyChargePayload>) =>
     api.put<{ data: CopyCharge }>(`/copy-charges/${id}`, payload).then((r) => r.data.data),
 
