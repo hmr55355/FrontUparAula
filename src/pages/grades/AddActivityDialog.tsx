@@ -74,12 +74,8 @@ export function AddActivityDialog({
 
   const section = sections.find((s) => s.id === sectionId)
 
-  // Por defecto, los grupos de la última actividad de la sección que los use (la fase anterior).
-  const suggestedSetId = (s: GradeSection | undefined) =>
-    [...(s?.columns ?? [])].reverse().find((c) => c.work_group_set_id)?.work_group_set_id ?? null
-  const [workGroupSetId, setWorkGroupSetId] = useState<number | null>(() =>
-    suggestedSetId(sections.find((s) => s.id === (presetSectionId ?? sections[0]?.id)))
-  )
+  // Sin grupos por defecto: el docente elige si la actividad usa unos grupos ya creados.
+  const [workGroupSetId, setWorkGroupSetId] = useState<number | null>(null)
   const count = (section?.columns.length ?? 0) + 1
   const share = (Math.floor(1000 / count) / 10).toFixed(1)
 
@@ -159,10 +155,7 @@ export function AddActivityDialog({
             <select
               className="h-12 w-full rounded-md border border-input bg-transparent px-3"
               value={sectionId}
-              onChange={(e) => {
-                setSectionId(Number(e.target.value))
-                setWorkGroupSetId(suggestedSetId(sections.find((s) => s.id === Number(e.target.value))))
-              }}
+              onChange={(e) => setSectionId(Number(e.target.value))}
             >
               {sections.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -219,13 +212,13 @@ export function AddActivityDialog({
                 <option value="">Sin grupos (individual)</option>
                 {workGroupSets.map((set) => (
                   <option key={set.id} value={set.id}>
-                    {set.name} ({set.groups_count} {set.groups_count === 1 ? 'grupo' : 'grupos'})
+                    {set.name} ({set.groups_count} {set.groups_count === 1 ? 'equipo' : 'equipos'})
                   </option>
                 ))}
               </select>
               {workGroupSetId && (
                 <p className="text-xs text-muted-foreground">
-                  La actividad usará los mismos grupos; la nota de cada grupo se pone aparte, en el icono de grupos de la columna.
+                  La actividad usará los equipos de este grupo; la nota de cada equipo se pone aparte, en el icono de grupos de la columna.
                 </p>
               )}
             </div>

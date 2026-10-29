@@ -49,6 +49,7 @@ export function GradeSheetTable({
   const [bulkColumn, setBulkColumn] = useState<GradeColumn | null>(null)
   const [groupsColumn, setGroupsColumn] = useState<GradeColumn | null>(null)
   const groupsByColumn = useMemo(() => workGroupIndex(sheet), [sheet])
+  const setNames = useMemo(() => new Map((sheet.work_group_sets ?? []).map((s) => [s.id, s.name])), [sheet])
   const tableRef = useRef<HTMLDivElement>(null)
 
   // Posición de cada actividad de izquierda a derecha, para moverse con Tab.
@@ -167,8 +168,8 @@ export function GradeSheetTable({
                           }`}
                           title={
                             workGroupsOf(sheet, column.id).length > 0
-                              ? `Grupos de trabajo (${workGroupsOf(sheet, column.id).length})`
-                              : 'Crear grupos de trabajo para esta actividad'
+                              ? `${setNames.get(workGroupsOf(sheet, column.id)[0].set_id) ?? 'Grupo'} (${workGroupsOf(sheet, column.id).length} equipos)`
+                              : 'Trabajar esta actividad por equipos'
                           }
                           aria-label="Grupos de trabajo"
                           onClick={() => setGroupsColumn(column)}
@@ -217,7 +218,12 @@ export function GradeSheetTable({
                             <EditableGradeCell
                               cellPosition={{ row: rowIndex, col: colIndex }}
                               onMove={(move) => moveFrom(rowIndex, colIndex, move)}
-                              workGroup={workGroup && { number: workGroup.number, name: workGroup.group.name }}
+                              workGroup={
+                                workGroup && {
+                                  number: workGroup.number,
+                                  name: [setNames.get(workGroup.group.set_id), workGroup.group.name].filter(Boolean).join(' · '),
+                                }
+                              }
                               grade={grade}
                               conventions={sheet.conventions}
                               minPassing={sheet.min_passing_grade}
@@ -379,7 +385,7 @@ function EditableGradeCell({
 }: {
   cellPosition: { row: number; col: number }
   onMove: (move: CellMove) => void
-  /** Grupo de trabajo del estudiante en esta actividad (se marca "G1", "G2"… en la celda). */
+  /** Grupo de trabajo del estudiante en esta actividad (se marca "E1", "E2"… en la celda). */
   workGroup?: { number: number; name: string }
   grade: Grade | undefined
   conventions: GradeConvention[]
@@ -439,7 +445,7 @@ function EditableGradeCell({
         {content}
         {workGroup && (
           <span className="pointer-events-none absolute right-0.5 top-0.5 text-[9px] font-semibold leading-none opacity-70">
-            G{workGroup.number}
+            E{workGroup.number}
           </span>
         )}
       </button>
