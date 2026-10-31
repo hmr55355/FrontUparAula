@@ -59,8 +59,8 @@ export function GradeSheetTable({
     return positions
   }, [sheet.sections])
 
-  // Enter y flechas ↑/↓ pasan a la celda de arriba o abajo; Tab, a la siguiente actividad
-  // editable de la fila. Se abre la celda destino haciéndole clic, igual que el docente.
+  // Enter y flechas ↑/↓ pasan a la celda de arriba o abajo; Tab y flechas ←/→, a la actividad
+  // editable anterior o siguiente de la fila. Se abre la celda destino haciéndole clic, igual que el docente.
   const moveFrom = (row: number, col: number, move: CellMove) => {
     const container = tableRef.current
     if (!container) return
@@ -484,6 +484,8 @@ function EditableGradeCell({
       : e.key === 'ArrowDown' ? 'down'
       : e.key === 'ArrowUp' ? 'up'
       : e.key === 'Tab' ? (e.shiftKey ? 'left' : 'right')
+      : e.key === 'ArrowLeft' && caretAtEdge(e.currentTarget, 'left') ? 'left'
+      : e.key === 'ArrowRight' && caretAtEdge(e.currentTarget, 'right') ? 'right'
       : null
     if (move) {
       e.preventDefault()
@@ -513,4 +515,17 @@ function EditableGradeCell({
       <ConventionPopover anchorRef={inputRef} conventions={conventions} onPick={(c) => save(inputFromConvention(c))} />
     </>
   )
+}
+
+/**
+ * ←/→ cambian de celda cuando no hay nada que recorrer dentro del texto: la nota está
+ * seleccionada completa (recién abierta) o el cursor ya está en ese borde. Si no, mueven
+ * el cursor dentro de la nota como siempre (para corregir "8.5" sin borrarla).
+ */
+function caretAtEdge(input: HTMLInputElement, side: 'left' | 'right') {
+  const { selectionStart, selectionEnd, value } = input
+  if (selectionStart === null || selectionEnd === null) return true
+  if (selectionStart === 0 && selectionEnd === value.length) return true
+  if (selectionStart !== selectionEnd) return false
+  return side === 'left' ? selectionStart === 0 : selectionEnd === value.length
 }
