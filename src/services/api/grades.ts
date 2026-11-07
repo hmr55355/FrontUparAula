@@ -98,6 +98,9 @@ export const gradeColumnsApi = {
   update: (id: number, payload: { name?: string; short_name?: string | null }) =>
     api.put<{ data: GradeColumn }>(`/grade-columns/${id}`, payload).then((r) => r.data.data),
 
+  /** Elimina la actividad; el backend reparte su peso entre las demás de la sección y recalcula. */
+  remove: (id: number) => api.delete(`/grade-columns/${id}`, { params: { confirm: 1 } }),
+
   /** Mis cursos de la misma materia en los otros grupos del grado, con su sección del mismo nombre. */
   siblings: (sectionId: number) =>
     api

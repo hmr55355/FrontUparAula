@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { CalendarCheck, History, Table2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { groupSubjectsApi } from '@/services/api/groupSubjects'
+import { useActivePeriod } from '@/hooks/useActivePeriod'
 import { Card, CardContent } from '@/components/ui/card'
 import { attendanceApi } from '@/services/api/attendance'
 import { getAttendanceColor } from '@/utils/attendanceHelpers'
 import { ATTENDANCE_CYCLE, ATTENDANCE_LABELS } from '@/types/attendance'
 import type { AttendanceStatus } from '@/types/attendance'
 import { useActiveCourseStore } from '@/store/activeCourseStore'
-import { localDateString } from '@/utils/dateHelpers'
+import { localDateString, periodForDate } from '@/utils/dateHelpers'
 import { AttendancePeriodNote } from '@/pages/attendance/AttendancePeriodNote'
 
 function today() {
@@ -26,8 +29,16 @@ export function Attendance() {
   const [statuses, setStatuses] = useState<Record<number, AttendanceStatus | null>>({})
   const [justifications, setJustifications] = useState<Record<number, string>>({})
   const [saving, setSaving] = useState(false)
+  // Tras guardar: preguntar si ir a la planilla del curso o seguir en la asistencia.
+  const [askGoToSheet, setAskGoToSheet] = useState(false)
+  const navigate = useNavigate()
 
   const groupSubjectId = activeCourse?.groupSubjectId
+  const { data: courses } = useQuery({ queryKey: ['group-subjects', 'mine'], queryFn: groupSubjectsApi.myCourses })
+  const course = courses?.find((c) => c.id === groupSubjectId)
+  const { data: periods, activePeriod } = useActivePeriod(course?.academic_year_id)
+  // La planilla del período al que pertenece la fecha de la lista (o el activo).
+  const sheetPeriod = periodForDate(periods, date) ?? activePeriod
 
   const { data, isLoading } = useQuery({
     queryKey: ['attendance', 'day', groupSubjectId, date],
@@ -87,6 +98,7 @@ export function Attendance() {
       // La asistencia recalcula en el backend las columnas "desde asistencia" y las
       // definitivas: sin esto, la planilla mostraría la nota vieja desde la caché.
       queryClient.invalidateQueries({ queryKey: ['grades-sheet', groupSubjectId] })
+      if (sheetPeriod) setAskGoToSheet(true)
     } catch {
       toast.error('No pudimos guardar la asistencia.')
     } finally {
@@ -184,6 +196,29 @@ export function Attendance() {
           </Button>
         </>
       )}
+
+      <Dialog open={askGoToSheet} onOpenChange={setAskGoToSheet}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Asistencia guardada</DialogTitle>
+            <DialogDescription>¿Quieres ir a la planilla de calificaciones de este curso o seguir en la asistencia?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setAskGoToSheet(false)}>
+              Seguir en asistencia
+            </Button>
+            <Button
+              autoFocus
+              onClick={() => {
+                setAskGoToSheet(false)
+                if (groupSubjectId && sheetPeriod) navigate(`/grades/${groupSubjectId}/${sheetPeriod.id}`)
+              }}
+            >
+              Ir a la planilla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

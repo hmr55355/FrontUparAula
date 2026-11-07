@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Trash2 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -40,6 +41,54 @@ export function BulkColumnGradeDialog({
   const [shortName, setShortName] = useState(column.short_name ?? '')
   const [renaming, setRenaming] = useState(false)
   const nameChanged = name.trim() !== column.name || shortName.trim() !== (column.short_name ?? '')
+
+  const [removing, setRemoving] = useState(false)
+  const section = sheet.sections.find((s) => s.columns.some((c) => c.id === column.id))
+  const others = section?.columns.filter((c) => c.id !== column.id) ?? []
+  const withGrades = sheet.students.filter((s) => {
+    const g = sheet.grades[s.id]?.[column.id]
+    return g && (g.score !== null || g.convention_id !== null)
+  }).length
+
+  /** Mismo reparto que hace el backend: en proporción a los pesos actuales, para seguir sumando igual. */
+  const rescaledWeights = () => {
+    const total = (section?.columns ?? []).reduce((sum, c) => sum + Number(c.weight), 0)
+    const current = others.reduce((sum, c) => sum + Number(c.weight), 0)
+    let assigned = 0
+    return others.map((c, i) => {
+      const weight =
+        i === others.length - 1
+          ? Math.round((total - assigned) * 10) / 10
+          : Math.round((current > 0 ? (Number(c.weight) * total) / current : total / others.length) * 10) / 10
+      assigned += weight
+      return `${c.short_name || c.name} ${weight.toFixed(1)} %`
+    })
+  }
+
+  const remove = async () => {
+    const lines = [
+      `¿Eliminar la actividad "${column.name}"? No se puede deshacer.`,
+      withGrades > 0 ? `Se borrarán las notas de ${withGrades} ${withGrades === 1 ? 'estudiante' : 'estudiantes'}.` : '',
+      others.length > 0
+        ? `Los porcentajes de "${section?.name}" quedarán así: ${rescaledWeights().join(', ')}.`
+        : `"${section?.name}" quedará sin actividades.`,
+      'Las definitivas se recalculan solas.',
+    ].filter(Boolean)
+    if (!window.confirm(lines.join('\n\n'))) return
+    setRemoving(true)
+    try {
+      await gradeColumnsApi.remove(column.id)
+      toast.success(`Actividad "${column.name}" eliminada.`)
+      queryClient.invalidateQueries({ queryKey: gradeSheetQueryKey(groupSubjectId, periodId) })
+      queryClient.invalidateQueries({ queryKey: ['homeworks', groupSubjectId, periodId] })
+      onOpenChange(false)
+    } catch (error) {
+      const message = (error as { response?: { data?: { message?: string } } })?.response?.data?.message
+      toast.error(message || 'No pudimos eliminar la actividad.')
+    } finally {
+      setRemoving(false)
+    }
+  }
 
   const rename = async () => {
     if (!name.trim()) {
@@ -154,7 +203,10 @@ export function BulkColumnGradeDialog({
               : `Se asignará a ${targets.length} de ${sheet.students.length} estudiantes.`}
           </p>
         </div>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:justify-between">
+          <Button variant="ghost" className="text-destructive" onClick={remove} disabled={removing || saving}>
+            <Trash2 className="h-4 w-4" /> {removing ? 'Eliminando...' : 'Eliminar actividad'}
+          </Button>
           <Button onClick={save} disabled={!isValid || targets.length === 0 || saving}>
             {saving ? 'Guardando...' : 'Asignar nota'}
           </Button>

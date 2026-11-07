@@ -134,7 +134,7 @@ export function GradeSheetMobile({
                       <button
                         onClick={() => setBulkColumn(column)}
                         className="rounded-md border px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted"
-                        title="Poner la misma nota a todos"
+                        title="Misma nota a todos, renombrar o eliminar"
                       >
                         Misma nota
                       </button>

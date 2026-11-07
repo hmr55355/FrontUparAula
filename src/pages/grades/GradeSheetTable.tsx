@@ -155,7 +155,7 @@ export function GradeSheetTable({
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded px-1 hover:bg-muted"
-                          title="Poner la misma nota a todos en esta actividad"
+                          title="Misma nota a todos, renombrar o eliminar la actividad"
                           onClick={() => setBulkColumn(column)}
                         >
                           {column.short_name || column.name}
